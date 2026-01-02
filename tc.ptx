@@ -23,8 +23,12 @@
     .reg .b64 mem_out;
 
     // Shared memory storage for the inputs.
-    .shared .b16 smem_a[16][64];
-    .shared .b16 smem_b[16][256];
+    .shared .align 16 .b16 smem_a[16][64];
+    .shared .align 16 .b16 smem_b[16][256];
+
+    // Shared memory matrix descriptors.
+    .reg .u64 a_desc;
+    .reg .u64 b_desc;
 
     // ===LOGIC===
 
@@ -102,6 +106,20 @@
     // between the sentinel stores and the actual WGMMA operation.
     wgmma.fence.sync.aligned;
 
+    // Form the shared memory descriptors. Our canonical no-swizzle K-major (non-transposed) layout has:
+    //   * the start of the matrix aligned to 16 bytes (encoded in the lowest 2 bytes)
+    //   * LBO = 1024 (encoded as 0x40 shifted by 16 bits)
+    //   * SBO = 128  (encoded as 0x8 shifted by 32 bits)
+    //   * no swizzling (implicitly implied)
+    // We don't explicity mask anything with `0x3FFFF`, since everything fits in 18 bits already.
+    mov.u64 a_desc, smem_a;
+    shr.u64 a_desc, a_desc, 4;
+    or.b64  a_desc, a_desc, 0x800400000;
+
+    mov.u64 b_desc, smem_b;
+    shr.u64 b_desc, b_desc, 4;
+    or.b64  b_desc, b_desc, 0x800400000;
+
     wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16
         // A vector expression containing N/2 number of .f32 registers.
         {
@@ -114,8 +132,8 @@
              o96,  o97,  o98,  o99, o100, o101, o102, o103, o104, o105, o106, o107, o108, o109, o110, o111,
             o112, o113, o114, o115, o116, o117, o118, o119, o120, o121, o122, o123, o124, o125, o126, o127
         },
-        42424242, // a-desc
-        42, // b-desc
+        a_desc,
+        b_desc,
         1, // scale-d (overwrite the accumulator)
         1, // imm-scale-a (don't negate A)
         1, // imm-scale-b (don't negate B)
