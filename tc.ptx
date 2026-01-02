@@ -1,0 +1,129 @@
+.version 8.7
+.target sm_90a
+.address_size 64
+
+.visible .entry run_tc(
+    .param .u64 mem_a_param,
+    .param .u64 mem_b_param,
+    .param .u64 mem_out_param
+) {
+    // ===VARIABLES===
+
+    // Auxiliaries.
+    .reg .b128 wide_data<4>;
+    .reg .u64  tmp_addr;
+    .reg .u32  tid;
+
+    // Output registers.
+    .reg .f32 o<128>;
+
+    // Global memory pointers to the inputs and the output.
+    .reg .b64 mem_a;
+    .reg .b64 mem_b;
+    .reg .b64 mem_out;
+
+    // Shared memory storage for the inputs.
+    .shared .b16 smem_a[16][64];
+    .shared .b16 smem_b[16][256];
+
+    // ===LOGIC===
+
+    mov.u32 tid, %tid.x;
+
+    // Load the A matrix from global memory to the shared memory storage.
+    // We have 16*64 = 1024 elements and 128 threads, so each thread
+    // processes 8 elements using 16-byte loads/storse.
+    ld.param.u64   tmp_addr, [mem_a_param];
+    mad.wide.u32   tmp_addr, 16, tid, tmp_addr;
+    ld.global.b128 wide_data0, [tmp_addr];
+
+    mov.u64        tmp_addr, smem_a;
+    mad.wide.u32   tmp_addr, 16, tid, tmp_addr;
+    st.shared.b128 [tmp_addr], wide_data0;
+
+    // Load the B matrix from global memory to the shared memory storage.
+    // For B, we have 4 times more elements than A, so we have to perform 4
+    // different 16-byte load/store pairs.
+    ld.param.u64   tmp_addr, [mem_b_param];
+    mad.wide.u32   tmp_addr, 64, tid, tmp_addr;
+    ld.global.b128 wide_data0, [tmp_addr + 0*16];
+    ld.global.b128 wide_data1, [tmp_addr + 1*16];
+    ld.global.b128 wide_data2, [tmp_addr + 2*16];
+    ld.global.b128 wide_data3, [tmp_addr + 3*16];
+
+    mov.u64        tmp_addr, smem_b;
+    mad.wide.u32   tmp_addr, 64, tid, tmp_addr;
+    st.shared.b128 [tmp_addr + 0*16], wide_data0;
+    st.shared.b128 [tmp_addr + 1*16], wide_data1;
+    st.shared.b128 [tmp_addr + 2*16], wide_data2;
+    st.shared.b128 [tmp_addr + 3*16], wide_data3;
+
+    // We are done with writing to the shared memory.
+    // According to 9.7.15.4, we now need to issue a fence to make these writes
+    // visible to the async proxy, which performs the WGMMA.
+    fence.proxy.async;
+
+    // Write sentinel values (NaN) to all output registers.
+    mov.f32   o0, 0Fffffffff; mov.f32   o1, 0Fffffffff; mov.f32   o2, 0Fffffffff; mov.f32   o3, 0Fffffffff;
+    mov.f32   o4, 0Fffffffff; mov.f32   o5, 0Fffffffff; mov.f32   o6, 0Fffffffff; mov.f32   o7, 0Fffffffff;
+    mov.f32   o8, 0Fffffffff; mov.f32   o9, 0Fffffffff; mov.f32  o10, 0Fffffffff; mov.f32  o11, 0Fffffffff;
+    mov.f32  o12, 0Fffffffff; mov.f32  o13, 0Fffffffff; mov.f32  o14, 0Fffffffff; mov.f32  o15, 0Fffffffff;
+    mov.f32  o16, 0Fffffffff; mov.f32  o17, 0Fffffffff; mov.f32  o18, 0Fffffffff; mov.f32  o19, 0Fffffffff;
+    mov.f32  o20, 0Fffffffff; mov.f32  o21, 0Fffffffff; mov.f32  o22, 0Fffffffff; mov.f32  o23, 0Fffffffff;
+    mov.f32  o24, 0Fffffffff; mov.f32  o25, 0Fffffffff; mov.f32  o26, 0Fffffffff; mov.f32  o27, 0Fffffffff;
+    mov.f32  o28, 0Fffffffff; mov.f32  o29, 0Fffffffff; mov.f32  o30, 0Fffffffff; mov.f32  o31, 0Fffffffff;
+    mov.f32  o32, 0Fffffffff; mov.f32  o33, 0Fffffffff; mov.f32  o34, 0Fffffffff; mov.f32  o35, 0Fffffffff;
+    mov.f32  o36, 0Fffffffff; mov.f32  o37, 0Fffffffff; mov.f32  o38, 0Fffffffff; mov.f32  o39, 0Fffffffff;
+    mov.f32  o40, 0Fffffffff; mov.f32  o41, 0Fffffffff; mov.f32  o42, 0Fffffffff; mov.f32  o43, 0Fffffffff;
+    mov.f32  o44, 0Fffffffff; mov.f32  o45, 0Fffffffff; mov.f32  o46, 0Fffffffff; mov.f32  o47, 0Fffffffff;
+    mov.f32  o48, 0Fffffffff; mov.f32  o49, 0Fffffffff; mov.f32  o50, 0Fffffffff; mov.f32  o51, 0Fffffffff;
+    mov.f32  o52, 0Fffffffff; mov.f32  o53, 0Fffffffff; mov.f32  o54, 0Fffffffff; mov.f32  o55, 0Fffffffff;
+    mov.f32  o56, 0Fffffffff; mov.f32  o57, 0Fffffffff; mov.f32  o58, 0Fffffffff; mov.f32  o59, 0Fffffffff;
+    mov.f32  o60, 0Fffffffff; mov.f32  o61, 0Fffffffff; mov.f32  o62, 0Fffffffff; mov.f32  o63, 0Fffffffff;
+    mov.f32  o64, 0Fffffffff; mov.f32  o65, 0Fffffffff; mov.f32  o66, 0Fffffffff; mov.f32  o67, 0Fffffffff;
+    mov.f32  o68, 0Fffffffff; mov.f32  o69, 0Fffffffff; mov.f32  o70, 0Fffffffff; mov.f32  o71, 0Fffffffff;
+    mov.f32  o72, 0Fffffffff; mov.f32  o73, 0Fffffffff; mov.f32  o74, 0Fffffffff; mov.f32  o75, 0Fffffffff;
+    mov.f32  o76, 0Fffffffff; mov.f32  o77, 0Fffffffff; mov.f32  o78, 0Fffffffff; mov.f32  o79, 0Fffffffff;
+    mov.f32  o80, 0Fffffffff; mov.f32  o81, 0Fffffffff; mov.f32  o82, 0Fffffffff; mov.f32  o83, 0Fffffffff;
+    mov.f32  o84, 0Fffffffff; mov.f32  o85, 0Fffffffff; mov.f32  o86, 0Fffffffff; mov.f32  o87, 0Fffffffff;
+    mov.f32  o88, 0Fffffffff; mov.f32  o89, 0Fffffffff; mov.f32  o90, 0Fffffffff; mov.f32  o91, 0Fffffffff;
+    mov.f32  o92, 0Fffffffff; mov.f32  o93, 0Fffffffff; mov.f32  o94, 0Fffffffff; mov.f32  o95, 0Fffffffff;
+    mov.f32  o96, 0Fffffffff; mov.f32  o97, 0Fffffffff; mov.f32  o98, 0Fffffffff; mov.f32  o99, 0Fffffffff;
+    mov.f32 o100, 0Fffffffff; mov.f32 o101, 0Fffffffff; mov.f32 o102, 0Fffffffff; mov.f32 o103, 0Fffffffff;
+    mov.f32 o104, 0Fffffffff; mov.f32 o105, 0Fffffffff; mov.f32 o106, 0Fffffffff; mov.f32 o107, 0Fffffffff;
+    mov.f32 o108, 0Fffffffff; mov.f32 o109, 0Fffffffff; mov.f32 o110, 0Fffffffff; mov.f32 o111, 0Fffffffff;
+    mov.f32 o112, 0Fffffffff; mov.f32 o113, 0Fffffffff; mov.f32 o114, 0Fffffffff; mov.f32 o115, 0Fffffffff;
+    mov.f32 o116, 0Fffffffff; mov.f32 o117, 0Fffffffff; mov.f32 o118, 0Fffffffff; mov.f32 o119, 0Fffffffff;
+    mov.f32 o120, 0Fffffffff; mov.f32 o121, 0Fffffffff; mov.f32 o122, 0Fffffffff; mov.f32 o123, 0Fffffffff;
+    mov.f32 o124, 0Fffffffff; mov.f32 o125, 0Fffffffff; mov.f32 o126, 0Fffffffff; mov.f32 o127, 0Fffffffff;
+
+    // We are done with writing the sentinel values to the output registers.
+    // According to 9.7.15.7.1, now we need a fence to establish an ordering
+    // between the sentinel stores and the actual WGMMA operation.
+    wgmma.fence.sync.aligned;
+
+    wgmma.mma_async.sync.aligned.m64n256k16.f32.bf16.bf16
+        // A vector expression containing N/2 number of .f32 registers.
+        {
+              o0,   o1,   o2,   o3,   o4,   o5,   o6,   o7,   o8,   o9,  o10,  o11,  o12,  o13,  o14,  o15,
+             o16,  o17,  o18,  o19,  o20,  o21,  o22,  o23,  o24,  o25,  o26,  o27,  o28,  o29,  o30,  o31,
+             o32,  o33,  o34,  o35,  o36,  o37,  o38,  o39,  o40,  o41,  o42,  o43,  o44,  o45,  o46,  o47,
+             o48,  o49,  o50,  o51,  o52,  o53,  o54,  o55,  o56,  o57,  o58,  o59,  o60,  o61,  o62,  o63,
+             o64,  o65,  o66,  o67,  o68,  o69,  o70,  o71,  o72,  o73,  o74,  o75,  o76,  o77,  o78,  o79,
+             o80,  o81,  o82,  o83,  o84,  o85,  o86,  o87,  o88,  o89,  o90,  o91,  o92,  o93,  o94,  o95,
+             o96,  o97,  o98,  o99, o100, o101, o102, o103, o104, o105, o106, o107, o108, o109, o110, o111,
+            o112, o113, o114, o115, o116, o117, o118, o119, o120, o121, o122, o123, o124, o125, o126, o127
+        },
+        42424242, // a-desc
+        42, // b-desc
+        1, // scale-d (overwrite the accumulator)
+        1, // imm-scale-a (don't negate A)
+        1, // imm-scale-b (don't negate B)
+        0, // imm-trans-a (don't transpose A)
+        0; // imm-trans-b (don't transpose B)
+
+    wgmma.commit_group.sync.aligned;
+    wgmma.wait_group.sync.aligned 0;
+
+    ret;
+}
