@@ -114,8 +114,10 @@ public:
         }
     }
 
-    __nv_bfloat16* data() {
-        return data_;
+    CUdeviceptr device_data() {
+        CUdeviceptr res;
+        CheckCu(cuMemHostGetDevicePointer(&res, data_, 0), "get the device pointer to shared memory input");
+        return res;
     }
 
     uint64_t desc() const {
@@ -177,11 +179,13 @@ int main() {
     smem_a.CopyFrom(mat_a);
     smem_b.CopyFrom(mat_b);
 
+    auto a_device_data = smem_a.device_data();
+    auto b_device_data = smem_b.device_data();
     auto a_desc = smem_a.desc();
     auto b_desc = smem_b.desc();
 
     std::array<void*, 5> args = {
-        smem_a.data(), smem_b.data(),
+        &a_device_data, &b_device_data,
         &a_desc, &b_desc,
         // FIXME: use real data
         nullptr, // output matrix
