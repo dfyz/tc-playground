@@ -82,13 +82,22 @@ float MulVecVecRef(const auto& vec_a, const auto& vec_b) {
     return res;
 }
 
+CUdeviceptr GetDevicePointer(void* host_pointer) {
+    CUdeviceptr res;
+    CheckCu(cuMemHostGetDevicePointer(&res, host_pointer, 0), "get the device pointer");
+    return res;
+}
+
 class SmemInput {
 public:
     SmemInput(size_t rows)
         // Without swizzling, we skip exactly `rows` 128-bit elements.
         : lbo_(rows * 16)
     {
-        CheckCu(cuMemHostAlloc((void**)&data_, rows * kK * sizeof(__nv_bfloat16), CU_MEMHOSTALLOC_DEVICEMAP), "allocate shared memory input");
+        CheckCu(cuMemHostAlloc(
+            (void**)&data_, rows * kK * sizeof(__nv_bfloat16), CU_MEMHOSTALLOC_DEVICEMAP),
+            "allocate shared memory input"
+        );
     }
 
     ~SmemInput() {
@@ -114,10 +123,8 @@ public:
         }
     }
 
-    CUdeviceptr device_data() {
-        CUdeviceptr res;
-        CheckCu(cuMemHostGetDevicePointer(&res, data_, 0), "get the device pointer to shared memory input");
-        return res;
+    CUdeviceptr device_data() const {
+        return GetDevicePointer(data_);
     }
 
     uint64_t desc() const {
@@ -140,33 +147,50 @@ private:
     __nv_bfloat16* data_;
 };
 
-int main() {
-    const auto [mat_a, mat_b] = GenInput();
-
-    for (size_t aa = 0; aa < mat_a.size(); ++aa) {
-        for (size_t bb = 0; bb < mat_b.size(); ++bb) {
-            const auto& vec_a = mat_a[aa];
-            const auto& vec_b = mat_b[bb];
-            const auto ref_res = MulVecVecRef(vec_a, vec_b);
-
-            printf("A[%zu]*B[%zu] = %a (%1.8e) = ", aa, bb, ref_res, ref_res);
-            for (size_t ii = 0; ii < vec_a.size(); ++ii) {
-                const auto a_float = (float)vec_a[ii];
-                const auto b_float = (float)vec_b[ii];
-                printf("%s%g * %g", ii ? " + " : "", a_float, b_float);
-            }
-            printf("\n");
-        }
+class GemmOutput {
+public:
+    GemmOutput(size_t rows, size_t cols)
+        : rows_(rows)
+        , cols_(cols)
+    {
+        CheckCu(
+            cuMemHostAlloc((void**)data_, rows * cols * sizeof(float), CU_MEMHOSTALLOC_DEVICEMAP),
+            "allocate global memory output"
+        );
     }
 
-    CheckCu(cuInit(0), "initialize CUDA");
+    ~GemmOutput() {
+        CheckCu(cuMemFreeHost(data_), "free global memory output");
+    }
 
-    CUdevice device;
-    CheckCu(cuDeviceGet(&device, 0), "get CUDA device #0");
+    float operator()(size_t row, size_t col) const {
+        // 9.7.15.5.1.1.1, "Accumulator D" with `.f32`
+        const size_t tid =
+            32 * (row / 16) +
+            4 * (row % 8) +
+            (col % 8) / 2
+        ;
 
-    CUcontext ctx;
-    CheckCu(cuCtxCreate(&ctx, nullptr, 0, device), "get CUDA context");
+        const size_t off =
+            4 * (col / 8) +
+            2 * ((row / 8) % 2) +
+            col % 2
+        ;
 
+        return data_[(kN / 2) * tid + off];
+    }
+
+    CUdeviceptr device_data() const {
+        return GetDevicePointer(data_);
+    }
+
+private:
+    size_t rows_;
+    size_t cols_;
+    float* data_;
+};
+
+void ComputeDeviceOut(CUcontext ctx, const MatA& mat_a, const MatB& mat_b, GemmOutput& device_out) {
     CUmodule module;
     CheckCu(cuModuleLoad(&module, "tc.cubin"), "load the compiled PTX");
 
@@ -183,12 +207,12 @@ int main() {
     auto b_device_data = smem_b.device_data();
     auto a_desc = smem_a.desc();
     auto b_desc = smem_b.desc();
+    auto out_device_data = device_out.device_data();
 
     std::array<void*, 5> args = {
         &a_device_data, &b_device_data,
         &a_desc, &b_desc,
-        // FIXME: use real data
-        nullptr, // output matrix
+        &out_device_data,
     };
     CheckCu(
         cuLaunchKernel(
@@ -206,5 +230,41 @@ int main() {
     CheckCu(cuCtxSynchronize(), "wait for run_tc completion");
 
     CheckCu(cuModuleUnload(module), "unload the compiled PTX");
+}
+
+int main() {
+    CheckCu(cuInit(0), "initialize CUDA");
+    CUdevice device;
+    CheckCu(cuDeviceGet(&device, 0), "get CUDA device #0");
+    CUcontext ctx;
+    CheckCu(cuCtxCreate(&ctx, nullptr, 0, device), "get CUDA context");
+
+    const auto [mat_a, mat_b] = GenInput();
+
+    GemmOutput device_out{kM, kN};
+    ComputeDeviceOut(ctx, mat_a, mat_b, device_out);
+
+    for (size_t aa = 0; aa < mat_a.size(); ++aa) {
+        for (size_t bb = 0; bb < mat_b.size(); ++bb) {
+            const auto& vec_a = mat_a[aa];
+            const auto& vec_b = mat_b[bb];
+            const auto host_res = MulVecVecRef(vec_a, vec_b);
+            const auto device_res = device_out(aa, bb);
+            printf(
+                "A[%zu]*B[%zu] -> %a (%1.8e) HOST vs. %a (%1.8e) DEVICE\n",
+                aa, bb,
+                host_res, host_res,
+                device_res, device_res
+            );
+            printf("\tINPUTS = ");
+            for (size_t ii = 0; ii < vec_a.size(); ++ii) {
+                const auto a_float = (float)vec_a[ii];
+                const auto b_float = (float)vec_b[ii];
+                printf("%s%g * %g", ii ? " + " : "", a_float, b_float);
+            }
+            printf("\n");
+        }
+    }
+
     CheckCu(cuCtxDestroy(ctx), "tear down the CUDA context");
 }
