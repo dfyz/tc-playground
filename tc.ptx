@@ -140,7 +140,7 @@
         },
         a_desc,
         b_desc,
-        1, // scale-d (overwrite the accumulator)
+        0, // scale-d (overwrite the accumulator)
         1, // imm-scale-a (don't negate A)
         1, // imm-scale-b (don't negate B)
         0, // imm-trans-a (don't transpose A)
