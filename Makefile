@@ -1,3 +1,4 @@
+# Intended to be run from nvidia/cuda:13.1.0-devel-ubuntu24.04
 .PHONY: all clean
 
 all: cpu_mul tc-ptx tc
