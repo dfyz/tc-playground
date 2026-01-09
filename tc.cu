@@ -20,7 +20,6 @@ void CheckCu(CUresult res, const char* reason) {
 }
 
 using Rng = std::mt19937_64;
-constexpr Rng::result_type kSeed = 31337;
 
 constexpr size_t kK = 16;
 constexpr size_t kM = 64;
@@ -46,8 +45,8 @@ void PermuteVecPair(Rng& rng, Vec& vec1, Vec& vec2) {
     }
 }
 
-std::pair<MatA, MatB> GenInput() {
-    Rng rng{kSeed};
+std::pair<MatA, MatB> GenInput(Rng::result_type seed) {
+    Rng rng{seed};
     MatA res_a;
     MatB res_b;
 
@@ -248,10 +247,14 @@ private:
     CUcontext ctx_;
 };
 
-int main() {
+int main(int argc, char** argv) {
+    if (argc != 2) {
+        errx(1, "usage: %s SEED", argv[0]);
+    }
+    const auto seed = std::stoull(argv[1]);
     CheckCu(cuInit(0), "initialize CUDA");
     CuContext ctx;
-    const auto [mat_a, mat_b] = GenInput();
+    const auto [mat_a, mat_b] = GenInput(seed);
 
     GemmOutput device_out{kM, kN};
     ComputeDeviceOut(mat_a, mat_b, device_out);
