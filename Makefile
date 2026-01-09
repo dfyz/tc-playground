@@ -1,7 +1,7 @@
 # Intended to be run from nvidia/cuda:13.1.0-devel-ubuntu24.04
 .PHONY: all clean
 
-all: cpu_mul tc-ptx tc
+all: tc-ptx tc
 
 cpu_mul: cpu_mul.c
 	gcc -O2 -std=c23 -mavx512bf16 -o cpu_mul cpu_mul.c

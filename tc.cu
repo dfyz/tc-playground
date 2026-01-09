@@ -154,7 +154,7 @@ public:
         , cols_(cols)
     {
         CheckCu(
-            cuMemHostAlloc((void**)data_, rows * cols * sizeof(float), CU_MEMHOSTALLOC_DEVICEMAP),
+            cuMemHostAlloc((void**)&data_, rows * cols * sizeof(float), CU_MEMHOSTALLOC_DEVICEMAP),
             "allocate global memory output"
         );
     }
@@ -190,7 +190,7 @@ private:
     float* data_;
 };
 
-void ComputeDeviceOut(CUcontext ctx, const MatA& mat_a, const MatB& mat_b, GemmOutput& device_out) {
+void ComputeDeviceOut(const MatA& mat_a, const MatB& mat_b, GemmOutput& device_out) {
     CUmodule module;
     CheckCu(cuModuleLoad(&module, "tc.cubin"), "load the compiled PTX");
 
@@ -232,17 +232,29 @@ void ComputeDeviceOut(CUcontext ctx, const MatA& mat_a, const MatB& mat_b, GemmO
     CheckCu(cuModuleUnload(module), "unload the compiled PTX");
 }
 
+class CuContext {
+public:
+    CuContext() {
+        CheckCu(cuDeviceGet(&device_, 0), "get CUDA device #0");
+        CheckCu(cuCtxCreate(&ctx_, nullptr, 0, device_), "get CUDA context");
+    }
+
+    ~CuContext() {
+        CheckCu(cuCtxDestroy(ctx_), "tear down the CUDA context");
+    }
+
+private:
+    CUdevice device_;
+    CUcontext ctx_;
+};
+
 int main() {
     CheckCu(cuInit(0), "initialize CUDA");
-    CUdevice device;
-    CheckCu(cuDeviceGet(&device, 0), "get CUDA device #0");
-    CUcontext ctx;
-    CheckCu(cuCtxCreate(&ctx, nullptr, 0, device), "get CUDA context");
-
+    CuContext ctx;
     const auto [mat_a, mat_b] = GenInput();
 
     GemmOutput device_out{kM, kN};
-    ComputeDeviceOut(ctx, mat_a, mat_b, device_out);
+    ComputeDeviceOut(mat_a, mat_b, device_out);
 
     for (size_t aa = 0; aa < mat_a.size(); ++aa) {
         for (size_t bb = 0; bb < mat_b.size(); ++bb) {
@@ -265,6 +277,4 @@ int main() {
             printf("\n");
         }
     }
-
-    CheckCu(cuCtxDestroy(ctx), "tear down the CUDA context");
 }
