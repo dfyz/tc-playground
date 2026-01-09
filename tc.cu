@@ -22,18 +22,22 @@ void CheckCu(CUresult res, const char* reason) {
 using Rng = std::mt19937_64;
 constexpr Rng::result_type kSeed = 31337;
 
-using Vec16 = std::array<__nv_bfloat16, 16>;
-using MatA  = std::array<Vec16, 64>;
-using MatB  = std::array<Vec16, 256>;
+constexpr size_t kK = 16;
+constexpr size_t kM = 64;
+constexpr size_t kN = 256;
 
-void GenVec(Rng& rng, Vec16& out) {
+using Vec = std::array<__nv_bfloat16, kK>;
+using MatA  = std::array<Vec, kM>;
+using MatB  = std::array<Vec, kN>;
+
+void GenVec(Rng& rng, Vec& out) {
     std::lognormal_distribution<float> gen{0.0f, 5.0f};
     for (size_t ii = 0; ii < out.size(); ++ii) {
         out[ii] = gen(rng);
     }
 }
 
-void PermuteVecPair(Rng& rng, Vec16& vec1, Vec16& vec2) {
+void PermuteVecPair(Rng& rng, Vec& vec1, Vec& vec2) {
     for (size_t ii = 1; ii < vec1.size(); ++ii) {
         std::uniform_int_distribution<size_t> gen{0, ii};
         const size_t jj = gen(rng);
@@ -78,6 +82,62 @@ float MulVecVecRef(const auto& vec_a, const auto& vec_b) {
     return res;
 }
 
+class SmemInput {
+public:
+    SmemInput(size_t rows)
+        // Without swizzling, we skip exactly `rows` 128-bit elements.
+        : lbo_(rows * 16)
+    {
+        CheckCu(cuMemHostAlloc((void**)&data_, rows * kK * sizeof(__nv_bfloat16), CU_MEMHOSTALLOC_DEVICEMAP), "allocate shared memory input");
+    }
+
+    ~SmemInput() {
+        CheckCu(cuMemFreeHost(data_), "free shared memory input");
+    }
+
+    __nv_bfloat16& operator()(size_t row, size_t col) {
+        const size_t off =
+            row * sbo_ +
+            (col / 8) * lbo_ +
+            (col % 8);
+        ;
+        return *(data_ + off);
+    }
+
+    template <size_t Rows>
+    void CopyFrom(const std::array<Vec, Rows>& mat) {
+        for (size_t row = 0; row < mat.size(); ++row) {
+            const auto& vec = mat[row];
+            for (size_t col = 0; col < vec.size(); ++col) {
+                (*this)(row, col) = vec[col];
+            }
+        }
+    }
+
+    __nv_bfloat16* data() {
+        return data_;
+    }
+
+    uint64_t desc() const {
+        return ((lbo_ >> 4) << 16) | ((sbo_ >> 4) << 32);
+    }
+
+private:
+    // 9.7.15.5.1.2.1.3: "T = 128 / sizeof-elements-in-bits [...]
+    // represents scale factor which normalizes matrix element types to 128-bits."
+    const size_t t_ = 128 / sizeof(__nv_bfloat16);
+    // 9.7.15.5.1.9:
+    // "The offset from the first 8 rows to the next 8 rows"
+    // Without swizzling, it's always 128 bytes (8 128-bit elements).
+    const size_t sbo_ = 128;
+    // 9.7.15.5.1.8: "the offset from the first column
+    // to the second columns [sic] of the 8x2 tile
+    // in the 128-bit element type normalized matrix"
+    const size_t lbo_;
+
+    __nv_bfloat16* data_;
+};
+
 int main() {
     const auto [mat_a, mat_b] = GenInput();
 
@@ -111,10 +171,19 @@ int main() {
     CUfunction run_tc;
     CheckCu(cuModuleGetFunction(&run_tc, module, "run_tc"), "find the run_tc kernel");
 
-    std::array<void*, 3> args = {
+    SmemInput smem_a(kM);
+    SmemInput smem_b(kN);
+
+    smem_a.CopyFrom(mat_a);
+    smem_b.CopyFrom(mat_b);
+
+    auto a_desc = smem_a.desc();
+    auto b_desc = smem_b.desc();
+
+    std::array<void*, 5> args = {
+        smem_a.data(), smem_b.data(),
+        &a_desc, &b_desc,
         // FIXME: use real data
-        nullptr, // A matrix
-        nullptr, // B matrix
         nullptr, // output matrix
     };
     CheckCu(
