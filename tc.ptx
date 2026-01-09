@@ -112,8 +112,7 @@
 
     // Form the shared memory descriptors. Our canonical no-swizzle K-major (non-transposed) layout has:
     //   * the start of the matrix aligned to 16 bytes (encoded in the lowest 2 bytes)
-    //   * LBO = 1024 (encoded as 0x40 shifted by 16 bits)
-    //   * SBO = 128  (encoded as 0x8 shifted by 32 bits)
+    //   * LBO and SBO are pre-computed as a mask on the host
     //   * no swizzling (implicitly implied)
     // We don't explicity mask anything with `0x3FFFF`, since everything fits in 18 bits already.
     mov.u64      a_desc, smem_a;
