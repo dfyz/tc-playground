@@ -106,8 +106,8 @@ public:
 
     __nv_bfloat16& operator()(size_t row, size_t col) {
         const size_t off =
-            row * sbo_ +
-            (col / 8) * lbo_ +
+            row * 8 +
+            (col / 8) * (lbo_ / sizeof(__nv_bfloat16)) +
             (col % 8);
         ;
         return *(data_ + off);
