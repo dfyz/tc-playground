@@ -9,7 +9,7 @@ tc-ptx: tc.ptx
 	ptxas --gpu-name sm_90a --output-file tc.cubin tc.ptx
 
 tc: tc.cu tc-ptx
-	nvcc -O2 -std=c++20 -lcuda -o tc tc.cu
+	nvcc -O2 --compiler-options=-mavx512bf16 -lcuda -std=c++20 -o tc tc.cu
 
 clean:
 	rm -f cpu_mul tc.cubin
