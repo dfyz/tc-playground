@@ -1,5 +1,7 @@
+#include "mvv_avx512.h"
+#include "common.h"
+
 #include <algorithm>
-#include <array>
 #include <random>
 #include <utility>
 
@@ -8,8 +10,6 @@
 
 #include <cuda.h>
 #include <cuda_bf16.h>
-
-#include <immintrin.h>
 
 void CheckCu(CUresult res, const char* reason) {
     if (res != CUDA_SUCCESS) {
@@ -20,14 +20,6 @@ void CheckCu(CUresult res, const char* reason) {
 }
 
 using Rng = std::mt19937_64;
-
-constexpr size_t kK = 16;
-constexpr size_t kM = 64;
-constexpr size_t kN = 256;
-
-using Vec = std::array<__nv_bfloat16, kK>;
-using MatA  = std::array<Vec, kM>;
-using MatB  = std::array<Vec, kN>;
 
 void GenVec(Rng& rng, Vec& out) {
     std::lognormal_distribution<float> gen{0.0f, 5.0f};
@@ -66,19 +58,6 @@ std::pair<MatA, MatB> GenInput(Rng::result_type seed) {
     }
 
     return std::make_pair(res_a, res_b);
-}
-
-float MulVecVecRef(const auto& vec_a, const auto& vec_b) {
-    __m512bh a_pack = (__m512bh)_mm512_cvtepu16_epi32(_mm256_loadu_si256((const __m256i*)vec_a.data()));
-    __m512bh b_pack = (__m512bh)_mm512_cvtepu16_epi32(_mm256_loadu_si256((const __m256i*)vec_b.data()));
-    __m512 packed_prods = _mm512_dpbf16_ps(_mm512_setzero(), a_pack, b_pack);
-    alignas(64) float prods[16];
-    _mm512_store_ps(prods, packed_prods);
-    float res = 0.0f;
-    for (auto x : prods) {
-        res += x;
-    }
-    return res;
 }
 
 CUdeviceptr GetDevicePointer(void* host_pointer) {
@@ -263,7 +242,7 @@ int main(int argc, char** argv) {
         for (size_t bb = 0; bb < mat_b.size(); ++bb) {
             const auto& vec_a = mat_a[aa];
             const auto& vec_b = mat_b[bb];
-            const auto host_res = MulVecVecRef(vec_a, vec_b);
+            const auto host_res = MulVecVecAvx512(vec_a, vec_b);
             const auto device_res = device_out(aa, bb);
             printf(
                 "A[%zu]*B[%zu] -> %a (%1.8e) HOST vs. %a (%1.8e) DEVICE\n",
