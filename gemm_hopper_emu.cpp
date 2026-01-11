@@ -45,6 +45,8 @@ struct Addend {
 float MulVecVecHopperEmu(const Vec& vec_a, const Vec& vec_b) {
     constexpr uint32_t kCarryBits = 5;
     constexpr uint32_t kExtraSignificandBits = 2;
+    constexpr uint32_t kMinExponent = 0;
+    constexpr uint32_t kMaxExponent = 255;
 
     std::array<Addend, kK> addends;
     for (size_t ii = 0; ii < vec_a.size(); ++ii) {
@@ -55,8 +57,8 @@ float MulVecVecHopperEmu(const Vec& vec_a, const Vec& vec_b) {
 
         const auto addend_exp = (uint8_t)std::clamp<int32_t>(
             (int32_t)a_parts.exponent + (int32_t)b_parts.exponent - 127,
-            std::numeric_limits<uint8_t>::min(),
-            std::numeric_limits<uint8_t>::max()
+            kMinExponent,
+            kMaxExponent
         );
 
         // Full significands have 8 bits, so the full product will have 16 bits.
@@ -103,14 +105,26 @@ float MulVecVecHopperEmu(const Vec& vec_a, const Vec& vec_b) {
         }
     }
 
-    // `kCarryBits` (plus one additional carry bit for denormalized product) should be zeroes.
-    // Otherwise, we need to re-normalize the result by truncating the significand
-    // and adjusting the exponent.
-    constexpr uint32_t kNeededZeroes = kCarryBits + 1;
+    // `kCarryBits` and one additional carry bit for denormalized product) should be zeroes,
+    // while the bit immediately after that should be one if possible (i.e., if the result
+    // is a normal number). Re-normalize the result by shifting the significand and adjusting
+    // the exponent.
+    constexpr uint32_t kNeededLeadingZeroes = kCarryBits + 1;
     const auto leading_zeros = std::countl_zero(result.significand);
-    if (kNeededZeroes > leading_zeros) {
-        result.exponent += (kNeededZeroes - leading_zeros);
-        result.significand >>= (kNeededZeroes - leading_zeros);
+    if (kNeededLeadingZeroes > leading_zeros) {
+        const auto delta = std::min<uint8_t>(
+            kMaxExponent - result.exponent,
+            kNeededLeadingZeroes - leading_zeros
+        );
+        result.exponent += delta;
+        result.significand >>= delta;
+    } else {
+        const auto delta = std::min<uint8_t>(
+            result.exponent,
+            leading_zeros - kNeededLeadingZeroes
+        );
+        result.exponent -= delta;
+        result.significand <<= delta;
     }
 
     // Compose the final result out of the individual components.

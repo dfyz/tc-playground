@@ -77,7 +77,6 @@ int main(int argc, char** argv) {
                 avx512_res, avx512_res,
                 hopper_res, hopper_res,
                 hopper_emu_res, hopper_emu_res
-
             );
             if (is_verbose != 0) {
                 printf("\tINPUTS = ");
