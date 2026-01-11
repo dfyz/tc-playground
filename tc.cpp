@@ -78,6 +78,11 @@ int main(int argc, char** argv) {
                 hopper_res, hopper_res,
                 hopper_emu_res, hopper_emu_res
             );
+
+            if (!std::isnan(hopper_res) && hopper_res != hopper_emu_res) {
+                errx(1, "detected a mismatch between the device output and its emulation");
+            }
+
             if (is_verbose != 0) {
                 printf("\tINPUTS = ");
                 for (size_t ii = 0; ii < vec_a.size(); ++ii) {
