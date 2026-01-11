@@ -154,6 +154,8 @@ std::unique_ptr<GemmOutput> MulMatMatHopper(const MatA& mat_a, const MatB& mat_b
         return std::make_unique<DummyOutput>();
     }
 
+    CuContext _ctx;
+
     CUmodule module;
     CheckCu(cuModuleLoad(&module, "tc.cubin"), "load the compiled PTX");
 
