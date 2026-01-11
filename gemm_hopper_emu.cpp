@@ -118,6 +118,6 @@ float MulVecVecHopperEmu(const Vec& vec_a, const Vec& vec_b) {
         (result.sign << 31) |
         (result.exponent << 23) |
         // Get rid of the extra bits and the implicit one, if any.
-        ((result.significand >> kExtraSignificandBits) & 0x7'FFFF)
+        ((result.significand >> kExtraSignificandBits) & 0x7F'FFFF)
     );
 }
