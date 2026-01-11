@@ -16,9 +16,10 @@
 using Rng = std::mt19937_64;
 
 void GenVec(Rng& rng, Vec& out) {
-    std::lognormal_distribution<float> gen{0.0f, 5.0f};
+    std::lognormal_distribution<float> gen{0.0f, 2.0f};
+    std::bernoulli_distribution sign;
     for (size_t ii = 0; ii < out.size(); ++ii) {
-        out[ii] = gen(rng);
+        out[ii] = (sign(rng) ? 1.0f : -1.0f) * gen(rng);
     }
 }
 
