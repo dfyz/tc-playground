@@ -1,6 +1,7 @@
 #include "common.h"
 #include "gemm_avx512.h"
 #include "gemm_hopper.h"
+#include "gemm_hopper_emu.h"
 
 #include <algorithm>
 #include <random>
@@ -68,11 +69,14 @@ int main(int argc, char** argv) {
             const auto& vec_b = mat_b[bb];
             const auto avx512_res = MulVecVecAvx512(vec_a, vec_b);
             const auto hopper_res = (*hopper_out)(aa, bb);
+            const auto hopper_emu_res = MulVecVecHopperEmu(vec_a, vec_b);
             printf(
-                "A[%zu]*B[%zu]: AVX512 = %a (%1.8e), HOPPER = %a (%1.8e)\n",
+                "A[%zu]*B[%zu]: AVX512 = %a (%1.8e), HOPPER = %a (%1.8e), HOPPER EMULATION = %a (%1.8e)\n",
                 aa, bb,
                 avx512_res, avx512_res,
-                hopper_res, hopper_res
+                hopper_res, hopper_res,
+                hopper_emu_res, hopper_emu_res
+
             );
             if (is_verbose != 0) {
                 printf("\tINPUTS = ");

@@ -19,10 +19,13 @@ gemm-avx512:
 gemm-hopper:
 	$(CXX) $(CFLAGS) -c gemm_hopper.cpp
 
-tc: tc.cpp tc-ptx gemm-avx512 gemm-hopper
+gemm-hopper-emu:
+	$(CXX) $(CFLAGS) -c gemm_hopper_emu.cpp
+
+tc: tc.cpp tc-ptx gemm-avx512 gemm-hopper gemm-hopper-emu
 	$(CXX) $(CFLAGS) $(LDFLAGS) -O2 -std=c++20 \
 		-o tc \
-		tc.cpp gemm_avx512.o gemm_hopper.o \
+		tc.cpp gemm_avx512.o gemm_hopper.o gemm_hopper_emu.o \
 		-lcuda
 
 clean:
