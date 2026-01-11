@@ -97,9 +97,9 @@ private:
     __nv_bfloat16* data_;
 };
 
-class RealOutput : public GemmOutput {
+class GmemOutput {
 public:
-    RealOutput(size_t rows, size_t cols)
+    GmemOutput(size_t rows, size_t cols)
         : rows_(rows)
         , cols_(cols)
     {
@@ -109,11 +109,11 @@ public:
         );
     }
 
-    ~RealOutput() {
+    ~GmemOutput() {
         CheckCu(cuMemFreeHost(data_), "free global memory output");
     }
 
-    float operator()(size_t row, size_t col) const override {
+    float operator()(size_t row, size_t col) const {
         // 9.7.15.5.1.1.1, "Accumulator D" with `.f32`
         const size_t tid =
             32 * (row / 16) +
@@ -142,16 +142,14 @@ private:
 
 }
 
-struct DummyOutput : public GemmOutput {
-    float operator()(size_t, size_t) const override {
-        return std::nanf("NA");
-    }
-};
-
-std::unique_ptr<GemmOutput> MulMatMatHopper(const MatA& mat_a, const MatB& mat_b) {
+GemmOutput MulMatMatHopper(const MatA& mat_a, const MatB& mat_b) {
     if (cuInit(0) != CUDA_SUCCESS) {
         fprintf(stderr, "Failed to initialize CUDA; device results will be unavailiable\n");
-        return std::make_unique<DummyOutput>();
+        GemmOutput dummy_result;
+        for (auto& row : dummy_result) {
+            row.fill(std::nanf("NA"));
+        }
+        return dummy_result;
     }
 
     CuContext _ctx;
@@ -168,13 +166,13 @@ std::unique_ptr<GemmOutput> MulMatMatHopper(const MatA& mat_a, const MatB& mat_b
     smem_a.CopyFrom(mat_a);
     smem_b.CopyFrom(mat_b);
 
-    auto device_out = std::make_unique<RealOutput>(kM, kN);
+    GmemOutput device_out{kM, kN};
 
     auto a_device_data = smem_a.device_data();
     auto b_device_data = smem_b.device_data();
     auto a_desc = smem_a.desc();
     auto b_desc = smem_b.desc();
-    auto out_device_data = device_out->device_data();
+    auto out_device_data = device_out.device_data();
 
     std::array<void*, 5> args = {
         &a_device_data, &b_device_data,
@@ -197,5 +195,11 @@ std::unique_ptr<GemmOutput> MulMatMatHopper(const MatA& mat_a, const MatB& mat_b
     CheckCu(cuCtxSynchronize(), "wait for run_tc completion");
     CheckCu(cuModuleUnload(module), "unload the compiled PTX");
 
-    return device_out;
+    GemmOutput result;
+    for (size_t row = 0; row < mat_a.size(); ++row) {
+        for (size_t col = 0; col < mat_b.size(); ++col) {
+            result[row][col] = device_out(row, col);
+        }
+    }
+    return result;
 }

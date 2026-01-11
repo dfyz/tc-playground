@@ -2,10 +2,8 @@
 
 #include "common.h"
 
-#include <memory>
+#include <array>
 
-struct GemmOutput {
-    virtual float operator()(size_t row, size_t col) const = 0;
-};
+using GemmOutput = std::array<std::array<float, kN>, kM>;
 
-std::unique_ptr<GemmOutput> MulMatMatHopper(const MatA& mat_a, const MatB& mat_b);
+GemmOutput MulMatMatHopper(const MatA& mat_a, const MatB& mat_b);
