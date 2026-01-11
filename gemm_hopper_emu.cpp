@@ -86,7 +86,7 @@ float MulVecVecHopperEmu(const Vec& vec_a, const Vec& vec_b) {
         // of the result, so we can immediately align the significand of `other`.
         auto& other = addends[ii];
         other.significand >>= std::min(31, result.exponent - other.exponent);
-        if (result.sign == other.significand) {
+        if (result.sign == other.sign) {
             // Perform an addition. This can't make the result negative, and won't overflow,
             // since we have enough most significant bits to store the carries.
             result.significand += other.significand;
