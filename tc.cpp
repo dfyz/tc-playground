@@ -85,10 +85,6 @@ int main(int argc, char** argv) {
                 hopper_emu_res, hopper_emu_res
             );
 
-            if (!std::isnan(hopper_res) && hopper_res != hopper_emu_res) {
-                errx(1, "detected a mismatch between the device output and its emulation");
-            }
-
             if (is_verbose != 0) {
                 printf("A_hex = {");
                 for (size_t ii = 0; ii < vec_a.size(); ++ii) {
@@ -100,6 +96,10 @@ int main(int argc, char** argv) {
                     printf("%s'%04hX'", (ii ? ", " : ""), ((__nv_bfloat16_raw)vec_b[ii]).x);
                 }
                 printf("}\n");
+            }
+
+            if (!std::isnan(hopper_res) && hopper_res != hopper_emu_res) {
+                errx(1, "detected a mismatch between the device output and its emulation");
             }
         }
     }
