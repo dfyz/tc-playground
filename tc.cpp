@@ -15,8 +15,14 @@
 
 using Rng = std::mt19937_64;
 
+#define SUBNORMALS 0
+
 void GenVec(Rng& rng, Vec& out) {
+#if SUBNORMALS
+    std::normal_distribution<float> gen{0.0f, 1e-19};
+#else
     std::lognormal_distribution<float> gen{0.0f, 2.0f};
+#endif
     std::bernoulli_distribution sign;
     for (size_t ii = 0; ii < out.size(); ++ii) {
         out[ii] = (sign(rng) ? 1.0f : -1.0f) * gen(rng);
@@ -84,13 +90,16 @@ int main(int argc, char** argv) {
             }
 
             if (is_verbose != 0) {
-                printf("\tINPUTS = ");
+                printf("A_hex = {");
                 for (size_t ii = 0; ii < vec_a.size(); ++ii) {
-                    const auto a_float = (float)vec_a[ii];
-                    const auto b_float = (float)vec_b[ii];
-                    printf("%s%g * %g", ii ? " + " : "", a_float, b_float);
+                    printf("%s'%04hX'", (ii ? ", " : ""), ((__nv_bfloat16_raw)vec_a[ii]).x);
                 }
-                printf("\n");
+                printf("}\n");
+                printf("B_hex = {");
+                for (size_t ii = 0; ii < vec_b.size(); ++ii) {
+                    printf("%s'%04hX'", (ii ? ", " : ""), ((__nv_bfloat16_raw)vec_b[ii]).x);
+                }
+                printf("}\n");
             }
         }
     }
