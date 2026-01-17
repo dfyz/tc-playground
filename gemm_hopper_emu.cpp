@@ -49,6 +49,9 @@ struct Addend {
 void PrintBinarySignficand(const Addend& x) {
     printf("%d -> ", x.exponent - 127);
     for (ssize_t ii = 31; ii >= 0; --ii) {
+        if (ii == 24 || ii == 26 || ii == 1) {
+            printf("|");
+        }
         printf("%c", (x.significand & (1 << ii)) ? '1' : '0');
     }
     printf("\n");
