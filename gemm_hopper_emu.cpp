@@ -7,8 +7,11 @@
 #include <array>
 #include <bit>
 #include <limits>
+#include <stdexcept>
 
 #include <cuda_bf16.h>
+
+#define DEBUG 0
 
 namespace {
 
@@ -36,17 +39,27 @@ struct BF16Parts {
 
 struct Addend {
     uint32_t significand;
-    uint8_t exponent;
+    int32_t exponent;
     uint8_t sign;
 };
 
 }
 
+#if DEBUG
+void PrintBinarySignficand(const Addend& x) {
+    printf("%d -> ", x.exponent - 127);
+    for (ssize_t ii = 31; ii >= 0; --ii) {
+        printf("%c", (x.significand & (1 << ii)) ? '1' : '0');
+    }
+    printf("\n");
+}
+#endif
+
 float MulVecVecHopperEmu(const Vec& vec_a, const Vec& vec_b) {
     constexpr uint32_t kCarryBits = 5;
     constexpr uint32_t kExtraSignificandBits = 2;
-    constexpr uint32_t kMinExponent = 0;
-    constexpr uint32_t kMaxExponent = 255;
+    constexpr int32_t kMinExponent = 0;
+    constexpr int32_t kMaxExponent = 255;
 
     std::array<Addend, kK> addends;
     for (size_t ii = 0; ii < vec_a.size(); ++ii) {
@@ -54,12 +67,7 @@ float MulVecVecHopperEmu(const Vec& vec_a, const Vec& vec_b) {
         const BF16Parts b_parts{vec_b[ii]};
 
         const auto addend_sign = (uint8_t)(a_parts.sign ^ b_parts.sign);
-
-        const auto addend_exp = (uint8_t)std::clamp<int32_t>(
-            (int32_t)a_parts.exponent + (int32_t)b_parts.exponent - 127,
-            kMinExponent,
-            kMaxExponent
-        );
+        const auto addend_exp = (int32_t)a_parts.exponent + (int32_t)b_parts.exponent - 127;
 
         // Full significands have 8 bits, so the full product will have 16 bits.
         // The 32-bit addend has kCarryBits most significant bits for intermediate carries,
@@ -81,6 +89,9 @@ float MulVecVecHopperEmu(const Vec& vec_a, const Vec& vec_b) {
     });
 
     Addend result{addends[0]};
+#if DEBUG
+    PrintBinarySignficand(result);
+#endif
     for (size_t ii = 1; ii < addends.size(); ++ii) {
         // The below follows the section 7.3 from "Handbook of Floating-Point Arithmetic"
         //
@@ -88,6 +99,9 @@ float MulVecVecHopperEmu(const Vec& vec_a, const Vec& vec_b) {
         // of the result, so we can immediately align the significand of `other`.
         auto& other = addends[ii];
         other.significand >>= std::min(31, result.exponent - other.exponent);
+#if DEBUG
+        PrintBinarySignficand(other);
+#endif
         if (result.sign == other.sign) {
             // Perform an addition. This can't make the result negative, and won't overflow,
             // since we have enough most significant bits to store the carries.
@@ -105,26 +119,27 @@ float MulVecVecHopperEmu(const Vec& vec_a, const Vec& vec_b) {
         }
     }
 
-    // `kCarryBits` and one additional carry bit for denormalized product) should be zeroes,
-    // while the bit immediately after that should be one if possible (i.e., if the result
-    // is a normal number). Re-normalize the result by shifting the significand and adjusting
-    // the exponent.
-    constexpr uint32_t kNeededLeadingZeroes = kCarryBits + 1;
-    const auto leading_zeros = std::countl_zero(result.significand);
-    if (kNeededLeadingZeroes > leading_zeros) {
-        const auto delta = std::min<uint8_t>(
-            kMaxExponent - result.exponent,
-            kNeededLeadingZeroes - leading_zeros
-        );
-        result.exponent += delta;
-        result.significand >>= delta;
-    } else {
-        const auto delta = std::min<uint8_t>(
-            result.exponent,
-            leading_zeros - kNeededLeadingZeroes
-        );
-        result.exponent -= delta;
-        result.significand <<= delta;
+#if DEBUG
+    printf("===\n");
+    PrintBinarySignficand(result);
+#endif
+
+    while ((result.significand & 0xfc'00'00'00u) != 0) {
+        if (result.exponent < kMaxExponent) {
+            ++result.exponent;
+            result.significand >>= 1;
+        } else {
+            throw std::logic_error("overflow");
+        }
+    }
+    while ((result.significand & 0x02'00'00'00u) == 0) {
+        if (result.exponent > 1) {
+            --result.exponent;
+            result.significand <<= 1;
+        } else {
+            result.exponent = 0;
+            break;
+        }
     }
 
     // Compose the final result out of the individual components.
