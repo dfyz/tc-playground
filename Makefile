@@ -3,8 +3,8 @@ CXX       ?= g++
 PTXAS     ?= ptxas
 CUDA_HOME ?= /usr/local/cuda
 
-CFLAGS  += -I$(CUDA_HOME)/include -std=c++20 -O2
-LDFLAGS += -L$(CUDA_HOME)/lib64
+override CFLAGS  += -I$(CUDA_HOME)/include -std=c++20 -O2
+override LDFLAGS += -L$(CUDA_HOME)/lib64
 
 .PHONY: all clean
 
