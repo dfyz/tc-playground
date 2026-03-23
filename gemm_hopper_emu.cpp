@@ -59,7 +59,7 @@ struct Addend {
 
 #ifdef DEBUG
 void PrintBinarySignficand(const Addend& x) {
-    printf("%d -> ", x.unbiased_exponent);
+    printf("%d -> %c", x.unbiased_exponent, x.sign ? '-' : '+');
     for (ssize_t ii = 31; ii >= 0; --ii) {
         if (ii == 24 || ii == 26 || ii == 1) {
             printf("|");
@@ -97,9 +97,9 @@ float MulVecVecHopperEmu(const Vec& vec_a, const Vec& vec_b) {
         };
     }
 
-    std::sort(addends.begin(), addends.end(), [](const auto& a, const auto& b) {
-        return a.unbiased_exponent > b.unbiased_exponent;
-    });
+    const auto max_exp = std::max_element(addends.begin(), addends.end(), [](const auto& a, const auto& b) {
+        return a.unbiased_exponent < b.unbiased_exponent;
+    })->unbiased_exponent;
 
     Addend result{addends[0]};
 #ifdef DEBUG
@@ -131,6 +131,7 @@ float MulVecVecHopperEmu(const Vec& vec_a, const Vec& vec_b) {
             }
         }
     }
+    result.unbiased_exponent = max_exp;
 
 #ifdef DEBUG
     printf("===\n");
