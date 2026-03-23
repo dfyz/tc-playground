@@ -101,11 +101,9 @@ float MulVecVecHopperEmu(const Vec& vec_a, const Vec& vec_b) {
         return a.unbiased_exponent < b.unbiased_exponent;
     })->unbiased_exponent;
 
-    Addend result{addends[0]};
-#ifdef DEBUG
-    PrintBinarySignficand(result);
-#endif
-    for (size_t ii = 1; ii < addends.size(); ++ii) {
+    Addend result{};
+    result.unbiased_exponent = max_exp;
+    for (size_t ii = 0; ii < addends.size(); ++ii) {
         // The below follows the section 7.3 from "Handbook of Floating-Point Arithmetic"
         //
         // We know that the exponent of `other` is not greater than the exponent
@@ -131,7 +129,6 @@ float MulVecVecHopperEmu(const Vec& vec_a, const Vec& vec_b) {
             }
         }
     }
-    result.unbiased_exponent = max_exp;
 
 #ifdef DEBUG
     printf("===\n");
