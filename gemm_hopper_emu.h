@@ -2,4 +2,4 @@
 
 #include "common.h"
 
-float MulVecVecHopperEmu(const Vec& vec_a, const Vec& vec_b);
+float MulVecVecHopperEmu(float c, const Vec& vec_a, const Vec& vec_b);

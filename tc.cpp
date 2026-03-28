@@ -76,7 +76,7 @@ int main(int argc, char** argv) {
             const auto& vec_b = mat_b[bb];
             const auto avx512_res = MulVecVecAvx512(vec_a, vec_b);
             const auto hopper_res = hopper_out[aa][bb];
-            const auto hopper_emu_res = MulVecVecHopperEmu(vec_a, vec_b);
+            const auto hopper_emu_res = MulVecVecHopperEmu(0.0f, vec_a, vec_b);
             printf(
                 "A[%zu]*B[%zu]: AVX512 = %a (%1.8e), HOPPER = %a (%1.8e), HOPPER EMULATION = %a (%1.8e)\n",
                 aa, bb,

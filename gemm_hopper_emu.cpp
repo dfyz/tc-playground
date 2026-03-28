@@ -13,23 +13,29 @@
 
 namespace {
 
+constexpr uint32_t kCarryBits = 5;
+constexpr uint32_t kExtraSignificandBits = 2;
+
 constexpr int32_t kMinExponent = -126;
 constexpr int32_t kMaxExponent = 127;
 
-uint8_t GetBiasedExponent(uint16_t number) {
-    return (number >> 7) & 0xFF;
+constexpr uint32_t kBF16SignificandBits = 7;
+constexpr uint32_t kFloatSignificandBits = 23;
+
+int8_t GetUnbiasedExponent(int32_t biased_exponent) {
+    return std::max(kMinExponent, biased_exponent - kMaxExponent);
 }
 
-int8_t GetUnbiasedExponent(uint16_t number) {
-    const auto unbiased_exponent = (int32_t)GetBiasedExponent(number) - kMaxExponent;
-    return std::max(kMinExponent, unbiased_exponent);
+uint8_t GetBiasedExponent(uint32_t number, uint32_t significand_bits) {
+    return (number >> significand_bits) & 0xFF;
 }
 
-uint8_t GetFullSignificand(uint16_t number) {
-    const auto raw_significand = number & 0x7F;
+uint32_t GetFullSignificand(uint32_t number, uint32_t significand_bits) {
+    const auto raw_significand = number & ((1L << significand_bits) - 1);
     // The MSB is implicitly 1 for normal numbers (exponent > 0).
     // For zero/subnormals, it's 0.
-    return (GetBiasedExponent(number) == 0 ? 0 : 0x80) | raw_significand;
+    const auto biased_exp = GetBiasedExponent(number, significand_bits);
+    return (biased_exp == 0 ? 0 : (1U << significand_bits)) | raw_significand;
 }
 
 struct BF16Parts {
@@ -38,15 +44,21 @@ struct BF16Parts {
     {}
 
     explicit BF16Parts(uint16_t number)
-        : sign(number >> 15)
-        , unbiased_exponent(GetUnbiasedExponent(number))
-        , full_significand(GetFullSignificand(number))
+        : full_significand(
+            GetFullSignificand(number, kBF16SignificandBits)
+        )
+        , unbiased_exponent(
+            GetUnbiasedExponent(
+                GetBiasedExponent(number, kBF16SignificandBits)
+            )
+        )
+        , sign(number >> 15)
     {
     }
 
-    uint8_t sign;
-    int8_t unbiased_exponent;
     uint8_t full_significand;
+    int8_t unbiased_exponent;
+    uint8_t sign;
 };
 
 struct Addend {
@@ -54,6 +66,18 @@ struct Addend {
     int32_t unbiased_exponent;
     uint8_t sign;
 };
+
+Addend FloatToAddend(float float_number) {
+    const auto number = std::bit_cast<uint32_t>(float_number);
+    return Addend {
+        .full_significand =
+            GetFullSignificand(number, kFloatSignificandBits) << kExtraSignificandBits,
+        .unbiased_exponent = GetUnbiasedExponent(
+            GetBiasedExponent(number, kFloatSignificandBits)
+        ),
+        .sign = (uint8_t)(number >> 31),
+    };
+}
 
 }
 
@@ -70,11 +94,10 @@ void PrintBinarySignficand(const Addend& x) {
 }
 #endif
 
-float MulVecVecHopperEmu(const Vec& vec_a, const Vec& vec_b) {
-    constexpr uint32_t kCarryBits = 5;
-    constexpr uint32_t kExtraSignificandBits = 2;
-
-    std::array<Addend, kK> addends;
+float MulVecVecHopperEmu(float c, const Vec& vec_a, const Vec& vec_b) {
+    std::array<Addend, kK + 1> addends;
+    addends[0] = FloatToAddend(c);
+    int32_t max_exp = addends[0].unbiased_exponent;
     for (size_t ii = 0; ii < vec_a.size(); ++ii) {
         const BF16Parts a_parts{vec_a[ii]};
         const BF16Parts b_parts{vec_b[ii]};
@@ -90,16 +113,13 @@ float MulVecVecHopperEmu(const Vec& vec_a, const Vec& vec_b) {
             << (31 - kCarryBits - 15)
         ;
 
-        addends[ii] = {
+        max_exp = std::max(max_exp, addend_exp);
+        addends[ii + 1] = {
             .full_significand = addend_significand,
             .unbiased_exponent = addend_exp,
             .sign = addend_sign,
         };
     }
-
-    const auto max_exp = std::max_element(addends.begin(), addends.end(), [](const auto& a, const auto& b) {
-        return a.unbiased_exponent < b.unbiased_exponent;
-    })->unbiased_exponent;
 
     Addend result{};
     result.unbiased_exponent = max_exp;
@@ -169,7 +189,7 @@ float MulVecVecHopperEmu(const Vec& vec_a, const Vec& vec_b) {
     }
 
     // Compose the final result out of the individual components.
-    return std::bit_cast<float, uint32_t>(
+    return std::bit_cast<float>(
         (result.sign << 31) |
         ((result.unbiased_exponent + kMaxExponent) << 23) |
         // Get rid of the extra bits and the implicit one, if any.
