@@ -8,7 +8,7 @@ override LDFLAGS += -L$(CUDA_HOME)/lib64
 
 .PHONY: all clean
 
-all: tc
+all: tc reproduce_tc
 
 tc-ptx: tc.ptx
 	$(PTXAS) --gpu-name sm_90a --output-file tc.cubin tc.ptx
@@ -26,6 +26,12 @@ tc: tc.cpp tc-ptx gemm-avx512 gemm-hopper gemm-hopper-emu
 	$(CXX) $(CFLAGS) $(LDFLAGS) -O2 -std=c++20 \
 		-o tc \
 		tc.cpp gemm_avx512.o gemm_hopper.o gemm_hopper_emu.o \
+		-lcuda
+
+reproduce_tc: reproduce_tc.cpp gemm_hopper_emu.o
+	$(CXX) $(CFLAGS) $(LDFLAGS) -O2 -std=c++20 \
+		-o reproduce_tc \
+		reproduce_tc.cpp gemm_hopper_emu.o \
 		-lcuda
 
 clean:
