@@ -3,14 +3,11 @@
 
 #include <cstdio>
 #include <err.h>
+#include <string>
 #include <thread>
 #include <vector>
 
 #include <cuda_bf16.h>
-
-constexpr size_t kFullM = 8192;
-constexpr size_t kFullN = 12288;
-constexpr size_t kFullK = 2048;
 
 std::vector<Vec> ParseFile(const char* file_name, size_t rows, size_t cols) {
     std::vector<Vec> result(rows * (cols / kK));
@@ -33,39 +30,58 @@ size_t GetPos(size_t row, size_t col, size_t cols) {
     return row * cols + col;
 }
 
-int main() {
-    const auto a_mat = ParseFile("a_prefill.bin", kFullM, kFullK);
-    const auto b_mat = ParseFile("b_prefill.bin", kFullN, kFullK);
-    const auto c_mat = ParseFile("c_prefill.bin", kFullM, kFullN);
+int main(int argc, char** argv) {
+    if (argc != 9) {
+        errx(1, "usage: a_file b_file c_file m n k n_workers n_k_parts");
+    }
+
+    const size_t full_m = std::stoull(argv[4]);
+    const size_t full_n = std::stoull(argv[5]);
+    const size_t full_k = std::stoull(argv[6]);
+
+    const auto a_mat = ParseFile(argv[1], full_m, full_k);
+    const auto b_mat = ParseFile(argv[2], full_n, full_k);
+    const auto c_mat = ParseFile(argv[3], full_m, full_n);
+
+    const size_t n_workers = std::stoull(argv[7]);
+    const size_t n_k_parts = std::stoull(argv[8]);
 
     std::vector<std::thread> workers;
-    const auto n_workers = std::thread::hardware_concurrency();
-    const auto chunk_size = kFullM / n_workers;
+    const auto chunk_size = full_m / n_workers;
     for (size_t w_idx = 0; w_idx < n_workers; ++w_idx) {
         workers.emplace_back([&, w_idx] {
             const auto start = w_idx * chunk_size;
             const auto end = (w_idx + 1) * chunk_size;
             for (size_t row = start; row < end; ++row) {
                 printf("worker %zu: %zu/%zu\n", w_idx, row - start, chunk_size);
-                for (size_t col = 0; col < kFullN; ++col) {
+                for (size_t col = 0; col < full_n; ++col) {
+                    float outer_acc = 0.0f;
+                    const auto k_chunk_size = full_k / n_k_parts;
 
-                    float acc = 0.0f;
-                    for (size_t kk = 0; kk < kFullK; kk += kK) {
-                        acc = MulVecVecHopperEmu(
-                            acc,
-                            a_mat[GetPos(row, kk, kFullK) / kK],
-                            b_mat[GetPos(col, kk, kFullK) / kK]
-                        );
+                    for (size_t part = 0; part < n_k_parts; ++part) {
+                        float inner_acc = 0.0f;
+                        const auto k_start = part * k_chunk_size;
+                        const auto k_end = (part + 1) * k_chunk_size;
+                        for (size_t kk = k_start; kk < k_end; kk += kK) {
+                            inner_acc = MulVecVecHopperEmu(
+                                inner_acc,
+                                a_mat[GetPos(row, kk, full_k) / kK],
+                                b_mat[GetPos(col, kk, full_k) / kK]
+                            );
+                        }
+                        outer_acc += inner_acc;
                     }
 
-                    const auto our_res = __float2bfloat16(acc);
-                    const auto c_pos = GetPos(row, col, kFullN);
+                    const auto our_res = __float2bfloat16(outer_acc);
+                    const auto c_pos = GetPos(row, col, full_n);
                     const auto ref_res = c_mat[c_pos / kK][c_pos % kK];
 
                     if (our_res != ref_res) {
                         errx(
                             1,
-                            "difference: %f vs. %f\n",
+                            "difference at %zu, %zu: %f vs. %f\n",
+                            row,
+                            col,
                             __bfloat162float(our_res),
                             __bfloat162float(ref_res)
                         );
