@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <random>
+#include <tuple>
 #include <utility>
 
 #include <cstdint>
@@ -17,15 +18,19 @@ using Rng = std::mt19937_64;
 
 #define SUBNORMALS 0
 
+float GenSign(Rng& rng) {
+    std::bernoulli_distribution sign;
+    return sign(rng) ? 1.0f : -1.0f;
+}
+
 void GenVec(Rng& rng, Vec& out) {
 #if SUBNORMALS
     std::normal_distribution<float> gen{0.0f, 1e-19};
 #else
     std::lognormal_distribution<float> gen{0.0f, 2.0f};
 #endif
-    std::bernoulli_distribution sign;
     for (size_t ii = 0; ii < out.size(); ++ii) {
-        out[ii] = (sign(rng) ? 1.0f : -1.0f) * gen(rng);
+        out[ii] = GenSign(rng) * gen(rng);
     }
 }
 
@@ -38,7 +43,7 @@ void PermuteVecPair(Rng& rng, Vec& vec1, Vec& vec2) {
     }
 }
 
-std::pair<MatA, MatB> GenInput(Rng::result_type seed) {
+std::tuple<MatA, MatB, float> GenInput(Rng::result_type seed) {
     Rng rng{seed};
     MatA res_a;
     MatB res_b;
@@ -58,7 +63,8 @@ std::pair<MatA, MatB> GenInput(Rng::result_type seed) {
         GenVec(rng, res_b[ii]);
     }
 
-    return std::make_pair(res_a, res_b);
+    std::lognormal_distribution<float> cc_gen{0.0f, 2.0f};
+    return std::make_tuple(res_a, res_b, GenSign(rng) * cc_gen(rng));
 }
 
 int main(int argc, char** argv) {
@@ -67,16 +73,16 @@ int main(int argc, char** argv) {
     }
     const auto seed = std::stoull(argv[1]);
     const auto is_verbose = std::stoull(argv[2]);
-    const auto [mat_a, mat_b] = GenInput(seed);
-    const auto hopper_out = MulMatMatHopper(mat_a, mat_b);
+    const auto [mat_a, mat_b, cc] = GenInput(seed);
+    const auto hopper_out = MulMatMatHopper(cc, mat_a, mat_b);
 
     for (size_t aa = 0; aa < mat_a.size(); ++aa) {
         for (size_t bb = 0; bb < mat_b.size(); ++bb) {
             const auto& vec_a = mat_a[aa];
             const auto& vec_b = mat_b[bb];
-            const auto avx512_res = MulVecVecAvx512(vec_a, vec_b);
+            const auto avx512_res = MulVecVecAvx512(cc, vec_a, vec_b);
             const auto hopper_res = hopper_out[aa][bb];
-            const auto hopper_emu_res = MulVecVecHopperEmu(0.0f, vec_a, vec_b);
+            const auto hopper_emu_res = MulVecVecHopperEmu(cc, vec_a, vec_b);
             printf(
                 "A[%zu]*B[%zu]: AVX512 = %a (%1.8e), HOPPER = %a (%1.8e), HOPPER EMULATION = %a (%1.8e)\n",
                 aa, bb,
@@ -96,6 +102,9 @@ int main(int argc, char** argv) {
                     printf("%s'%04hX'", (ii ? ", " : ""), ((__nv_bfloat16_raw)vec_b[ii]).x);
                 }
                 printf("}\n");
+                uint32_t c_int;
+                memcpy(&c_int, &cc, sizeof(uint32_t));
+                printf("C_hex = '%08hX'\n", c_int);
             }
 
             if (!std::isnan(hopper_res) && hopper_res != hopper_emu_res) {

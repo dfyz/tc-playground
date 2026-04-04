@@ -142,7 +142,7 @@ private:
 
 }
 
-GemmOutput MulMatMatHopper(const MatA& mat_a, const MatB& mat_b) {
+GemmOutput MulMatMatHopper(float c, const MatA& mat_a, const MatB& mat_b) {
     if (cuInit(0) != CUDA_SUCCESS) {
         fprintf(stderr, "Failed to initialize CUDA; device results will be unavailiable\n");
         GemmOutput dummy_result;
@@ -174,10 +174,18 @@ GemmOutput MulMatMatHopper(const MatA& mat_a, const MatB& mat_b) {
     auto b_desc = smem_b.desc();
     auto out_device_data = device_out.device_data();
 
-    std::array<void*, 5> args = {
+    float* c_ptr;
+    CheckCu(cuMemHostAlloc(
+        (void**)&c_ptr, sizeof(float), CU_MEMHOSTALLOC_DEVICEMAP),
+        "allocate C storage"
+    );
+    *c_ptr = c;
+
+    std::array<void*, 6> args = {
         &a_device_data, &b_device_data,
         &a_desc, &b_desc,
         &out_device_data,
+        &c_ptr,
     };
     CheckCu(
         cuLaunchKernel(

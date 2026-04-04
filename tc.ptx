@@ -7,7 +7,8 @@
     .param .u64 mem_b_param,
     .param .u64 a_desc_mask,
     .param .u64 b_desc_mask,
-    .param .u64 mem_out_param
+    .param .u64 mem_out_param,
+    .param .f32 c_value_param
 ) {
     // ===VARIABLES===
 
@@ -17,6 +18,7 @@
     .reg .u32  tid;
 
     // Output registers.
+    .reg .f32 c_value;
     .reg .f32 o<128>;
 
     // Global memory pointers to the inputs and the output.
@@ -71,39 +73,40 @@
     // visible to the async proxy, which performs the WGMMA.
     fence.proxy.async;
 
-    // Write sentinel values (NaN) to all output registers.
-    mov.f32   o0, 0Fffffffff; mov.f32   o1, 0Fffffffff; mov.f32   o2, 0Fffffffff; mov.f32   o3, 0Fffffffff;
-    mov.f32   o4, 0Fffffffff; mov.f32   o5, 0Fffffffff; mov.f32   o6, 0Fffffffff; mov.f32   o7, 0Fffffffff;
-    mov.f32   o8, 0Fffffffff; mov.f32   o9, 0Fffffffff; mov.f32  o10, 0Fffffffff; mov.f32  o11, 0Fffffffff;
-    mov.f32  o12, 0Fffffffff; mov.f32  o13, 0Fffffffff; mov.f32  o14, 0Fffffffff; mov.f32  o15, 0Fffffffff;
-    mov.f32  o16, 0Fffffffff; mov.f32  o17, 0Fffffffff; mov.f32  o18, 0Fffffffff; mov.f32  o19, 0Fffffffff;
-    mov.f32  o20, 0Fffffffff; mov.f32  o21, 0Fffffffff; mov.f32  o22, 0Fffffffff; mov.f32  o23, 0Fffffffff;
-    mov.f32  o24, 0Fffffffff; mov.f32  o25, 0Fffffffff; mov.f32  o26, 0Fffffffff; mov.f32  o27, 0Fffffffff;
-    mov.f32  o28, 0Fffffffff; mov.f32  o29, 0Fffffffff; mov.f32  o30, 0Fffffffff; mov.f32  o31, 0Fffffffff;
-    mov.f32  o32, 0Fffffffff; mov.f32  o33, 0Fffffffff; mov.f32  o34, 0Fffffffff; mov.f32  o35, 0Fffffffff;
-    mov.f32  o36, 0Fffffffff; mov.f32  o37, 0Fffffffff; mov.f32  o38, 0Fffffffff; mov.f32  o39, 0Fffffffff;
-    mov.f32  o40, 0Fffffffff; mov.f32  o41, 0Fffffffff; mov.f32  o42, 0Fffffffff; mov.f32  o43, 0Fffffffff;
-    mov.f32  o44, 0Fffffffff; mov.f32  o45, 0Fffffffff; mov.f32  o46, 0Fffffffff; mov.f32  o47, 0Fffffffff;
-    mov.f32  o48, 0Fffffffff; mov.f32  o49, 0Fffffffff; mov.f32  o50, 0Fffffffff; mov.f32  o51, 0Fffffffff;
-    mov.f32  o52, 0Fffffffff; mov.f32  o53, 0Fffffffff; mov.f32  o54, 0Fffffffff; mov.f32  o55, 0Fffffffff;
-    mov.f32  o56, 0Fffffffff; mov.f32  o57, 0Fffffffff; mov.f32  o58, 0Fffffffff; mov.f32  o59, 0Fffffffff;
-    mov.f32  o60, 0Fffffffff; mov.f32  o61, 0Fffffffff; mov.f32  o62, 0Fffffffff; mov.f32  o63, 0Fffffffff;
-    mov.f32  o64, 0Fffffffff; mov.f32  o65, 0Fffffffff; mov.f32  o66, 0Fffffffff; mov.f32  o67, 0Fffffffff;
-    mov.f32  o68, 0Fffffffff; mov.f32  o69, 0Fffffffff; mov.f32  o70, 0Fffffffff; mov.f32  o71, 0Fffffffff;
-    mov.f32  o72, 0Fffffffff; mov.f32  o73, 0Fffffffff; mov.f32  o74, 0Fffffffff; mov.f32  o75, 0Fffffffff;
-    mov.f32  o76, 0Fffffffff; mov.f32  o77, 0Fffffffff; mov.f32  o78, 0Fffffffff; mov.f32  o79, 0Fffffffff;
-    mov.f32  o80, 0Fffffffff; mov.f32  o81, 0Fffffffff; mov.f32  o82, 0Fffffffff; mov.f32  o83, 0Fffffffff;
-    mov.f32  o84, 0Fffffffff; mov.f32  o85, 0Fffffffff; mov.f32  o86, 0Fffffffff; mov.f32  o87, 0Fffffffff;
-    mov.f32  o88, 0Fffffffff; mov.f32  o89, 0Fffffffff; mov.f32  o90, 0Fffffffff; mov.f32  o91, 0Fffffffff;
-    mov.f32  o92, 0Fffffffff; mov.f32  o93, 0Fffffffff; mov.f32  o94, 0Fffffffff; mov.f32  o95, 0Fffffffff;
-    mov.f32  o96, 0Fffffffff; mov.f32  o97, 0Fffffffff; mov.f32  o98, 0Fffffffff; mov.f32  o99, 0Fffffffff;
-    mov.f32 o100, 0Fffffffff; mov.f32 o101, 0Fffffffff; mov.f32 o102, 0Fffffffff; mov.f32 o103, 0Fffffffff;
-    mov.f32 o104, 0Fffffffff; mov.f32 o105, 0Fffffffff; mov.f32 o106, 0Fffffffff; mov.f32 o107, 0Fffffffff;
-    mov.f32 o108, 0Fffffffff; mov.f32 o109, 0Fffffffff; mov.f32 o110, 0Fffffffff; mov.f32 o111, 0Fffffffff;
-    mov.f32 o112, 0Fffffffff; mov.f32 o113, 0Fffffffff; mov.f32 o114, 0Fffffffff; mov.f32 o115, 0Fffffffff;
-    mov.f32 o116, 0Fffffffff; mov.f32 o117, 0Fffffffff; mov.f32 o118, 0Fffffffff; mov.f32 o119, 0Fffffffff;
-    mov.f32 o120, 0Fffffffff; mov.f32 o121, 0Fffffffff; mov.f32 o122, 0Fffffffff; mov.f32 o123, 0Fffffffff;
-    mov.f32 o124, 0Fffffffff; mov.f32 o125, 0Fffffffff; mov.f32 o126, 0Fffffffff; mov.f32 o127, 0Fffffffff;
+    ld.param.f32 c_value, [c_value_param];
+    // Write the same initial value to all output registers.
+    mov.f32   o0, c_value; mov.f32   o1, c_value; mov.f32   o2, c_value; mov.f32   o3, c_value;
+    mov.f32   o4, c_value; mov.f32   o5, c_value; mov.f32   o6, c_value; mov.f32   o7, c_value;
+    mov.f32   o8, c_value; mov.f32   o9, c_value; mov.f32  o10, c_value; mov.f32  o11, c_value;
+    mov.f32  o12, c_value; mov.f32  o13, c_value; mov.f32  o14, c_value; mov.f32  o15, c_value;
+    mov.f32  o16, c_value; mov.f32  o17, c_value; mov.f32  o18, c_value; mov.f32  o19, c_value;
+    mov.f32  o20, c_value; mov.f32  o21, c_value; mov.f32  o22, c_value; mov.f32  o23, c_value;
+    mov.f32  o24, c_value; mov.f32  o25, c_value; mov.f32  o26, c_value; mov.f32  o27, c_value;
+    mov.f32  o28, c_value; mov.f32  o29, c_value; mov.f32  o30, c_value; mov.f32  o31, c_value;
+    mov.f32  o32, c_value; mov.f32  o33, c_value; mov.f32  o34, c_value; mov.f32  o35, c_value;
+    mov.f32  o36, c_value; mov.f32  o37, c_value; mov.f32  o38, c_value; mov.f32  o39, c_value;
+    mov.f32  o40, c_value; mov.f32  o41, c_value; mov.f32  o42, c_value; mov.f32  o43, c_value;
+    mov.f32  o44, c_value; mov.f32  o45, c_value; mov.f32  o46, c_value; mov.f32  o47, c_value;
+    mov.f32  o48, c_value; mov.f32  o49, c_value; mov.f32  o50, c_value; mov.f32  o51, c_value;
+    mov.f32  o52, c_value; mov.f32  o53, c_value; mov.f32  o54, c_value; mov.f32  o55, c_value;
+    mov.f32  o56, c_value; mov.f32  o57, c_value; mov.f32  o58, c_value; mov.f32  o59, c_value;
+    mov.f32  o60, c_value; mov.f32  o61, c_value; mov.f32  o62, c_value; mov.f32  o63, c_value;
+    mov.f32  o64, c_value; mov.f32  o65, c_value; mov.f32  o66, c_value; mov.f32  o67, c_value;
+    mov.f32  o68, c_value; mov.f32  o69, c_value; mov.f32  o70, c_value; mov.f32  o71, c_value;
+    mov.f32  o72, c_value; mov.f32  o73, c_value; mov.f32  o74, c_value; mov.f32  o75, c_value;
+    mov.f32  o76, c_value; mov.f32  o77, c_value; mov.f32  o78, c_value; mov.f32  o79, c_value;
+    mov.f32  o80, c_value; mov.f32  o81, c_value; mov.f32  o82, c_value; mov.f32  o83, c_value;
+    mov.f32  o84, c_value; mov.f32  o85, c_value; mov.f32  o86, c_value; mov.f32  o87, c_value;
+    mov.f32  o88, c_value; mov.f32  o89, c_value; mov.f32  o90, c_value; mov.f32  o91, c_value;
+    mov.f32  o92, c_value; mov.f32  o93, c_value; mov.f32  o94, c_value; mov.f32  o95, c_value;
+    mov.f32  o96, c_value; mov.f32  o97, c_value; mov.f32  o98, c_value; mov.f32  o99, c_value;
+    mov.f32 o100, c_value; mov.f32 o101, c_value; mov.f32 o102, c_value; mov.f32 o103, c_value;
+    mov.f32 o104, c_value; mov.f32 o105, c_value; mov.f32 o106, c_value; mov.f32 o107, c_value;
+    mov.f32 o108, c_value; mov.f32 o109, c_value; mov.f32 o110, c_value; mov.f32 o111, c_value;
+    mov.f32 o112, c_value; mov.f32 o113, c_value; mov.f32 o114, c_value; mov.f32 o115, c_value;
+    mov.f32 o116, c_value; mov.f32 o117, c_value; mov.f32 o118, c_value; mov.f32 o119, c_value;
+    mov.f32 o120, c_value; mov.f32 o121, c_value; mov.f32 o122, c_value; mov.f32 o123, c_value;
+    mov.f32 o124, c_value; mov.f32 o125, c_value; mov.f32 o126, c_value; mov.f32 o127, c_value;
 
     // We are done with writing the sentinel values to the output registers.
     // According to 9.7.15.7.1, now we need a fence to establish an ordering
