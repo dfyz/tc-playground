@@ -105,7 +105,7 @@ int main(int argc, char** argv) {
                 printf("}\n");
                 uint32_t c_int;
                 memcpy(&c_int, &cc, sizeof(uint32_t));
-                printf("C_hex = '%08hX'\n", c_int);
+                printf("C_hex = '%08X'\n", c_int);
             }
 
             if (!std::isnan(hopper_res) && hopper_res != hopper_emu_res) {
