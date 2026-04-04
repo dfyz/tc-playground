@@ -127,7 +127,6 @@ float MulVecVecHopperEmu(float c, const Vec& vec_a, const Vec& vec_b) {
     }
 
     auto result = FloatToAddend(c);
-    result.unbiased_exponent = max_exp;
     result.Align(max_exp);
     for (size_t ii = 0; ii < addends.size(); ++ii) {
         // The below follows the section 7.3 from "Handbook of Floating-Point Arithmetic"
@@ -155,6 +154,8 @@ float MulVecVecHopperEmu(float c, const Vec& vec_a, const Vec& vec_b) {
             }
         }
     }
+
+    result.unbiased_exponent = max_exp;
 
 #ifdef DEBUG
     printf("===\n");
