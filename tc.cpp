@@ -64,8 +64,7 @@ std::tuple<MatA, MatB, float> GenInput(Rng::result_type seed) {
     }
 
     std::lognormal_distribution<float> cc_gen{0.0f, 2.0f};
-    // FIXME: make the emulator work with non-zero C.
-    return std::make_tuple(res_a, res_b, /*GenSign(rng) * cc_gen(rng)*/0.0f);
+    return std::make_tuple(res_a, res_b, GenSign(rng) * cc_gen(rng));
 }
 
 int main(int argc, char** argv) {

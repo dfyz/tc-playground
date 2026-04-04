@@ -127,6 +127,7 @@ float MulVecVecHopperEmu(float c, const Vec& vec_a, const Vec& vec_b) {
     }
 
     auto result = FloatToAddend(c);
+    max_exp = std::max(max_exp, result.unbiased_exponent);
     result.Align(max_exp);
     for (size_t ii = 0; ii < addends.size(); ++ii) {
         // The below follows the section 7.3 from "Handbook of Floating-Point Arithmetic"
