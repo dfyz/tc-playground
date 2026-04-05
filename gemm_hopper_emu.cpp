@@ -99,11 +99,22 @@ void PrintBinarySignficand(const Addend& x) {
 #endif
 
 float MulVecVecHopperEmu(float c, const Vec& vec_a, const Vec& vec_b) {
-    std::array<Addend, kK> addends;
-    addends[0] = FloatToAddend(c);
+    std::array<Addend, kK + 1> addends;
+
     // https://github.com/north-numerical-computing/MATLAB-tensor-core/blob/1c2522d4e248f46b426638b0af7d13beb1563ef9/models/tools/Generic_BFMA_TC.m#L418-L421
     auto max_exp = -133;
+
+    size_t addend_count = 0;
+    if (c != 0.0f) {
+        const auto c_addend = FloatToAddend(c);
+        max_exp = std::max(max_exp, c_addend.unbiased_exponent);
+        addends[addend_count++] = c_addend;
+    }
+
     for (size_t ii = 0; ii < vec_a.size(); ++ii) {
+        if (__bfloat162float(vec_a[ii]) == 0.0f || __bfloat162float(vec_b[ii]) == 0.0f) {
+            continue;
+        }
         const BF16Parts a_parts{vec_a[ii]};
         const BF16Parts b_parts{vec_b[ii]};
 
@@ -119,17 +130,16 @@ float MulVecVecHopperEmu(float c, const Vec& vec_a, const Vec& vec_b) {
         ;
 
         max_exp = std::max(max_exp, addend_exp);
-        addends[ii] = {
+        addends[addend_count++] = {
             .full_significand = addend_significand,
             .unbiased_exponent = addend_exp,
             .sign = addend_sign,
         };
     }
 
-    auto result = FloatToAddend(c);
-    max_exp = std::max(max_exp, result.unbiased_exponent);
-    result.Align(max_exp);
-    for (size_t ii = 0; ii < addends.size(); ++ii) {
+    Addend result{};
+    result.unbiased_exponent = max_exp;
+    for (size_t ii = 0; ii < addend_count; ++ii) {
         // The below follows the section 7.3 from "Handbook of Floating-Point Arithmetic"
         //
         // We know that the exponent of `other` is not greater than the exponent
@@ -155,8 +165,6 @@ float MulVecVecHopperEmu(float c, const Vec& vec_a, const Vec& vec_b) {
             }
         }
     }
-
-    result.unbiased_exponent = max_exp;
 
 #ifdef DEBUG
     printf("===\n");
