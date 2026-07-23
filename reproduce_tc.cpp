@@ -10,7 +10,7 @@
 #include <cuda_bf16.h>
 
 std::vector<Vec> ParseFile(const char* file_name, size_t rows, size_t cols) {
-    std::vector<Vec> result(rows * (cols / kK));
+    std::vector<Vec> result(rows * cols / kK);
     FILE* f = fopen(file_name, "r");
     if (f == nullptr) {
         errx(1, "failed to open %s", file_name);
