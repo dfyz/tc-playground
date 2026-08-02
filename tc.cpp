@@ -2,6 +2,7 @@
 #include "gemm_avx512.h"
 #include "gemm_hopper.h"
 #include "gemm_hopper_emu.h"
+#include "gemm_hopper_emu_2.h"
 
 #include <algorithm>
 #include <random>
@@ -83,12 +84,14 @@ int main(int argc, char** argv) {
             const auto avx512_res = MulVecVecAvx512(cc, vec_a, vec_b);
             const auto hopper_res = hopper_out[aa][bb];
             const auto hopper_emu_res = MulVecVecHopperEmu(cc, vec_a, vec_b);
+            const auto hopper_emu_res_2 = MulVecVecHopperEmu2(cc, (const unsigned*)vec_a.data(), (const unsigned*)vec_b.data());
             printf(
-                "A[%zu]*B[%zu]: AVX512 = %a (%1.8e), HOPPER = %a (%1.8e), HOPPER EMULATION = %a (%1.8e)\n",
+                "A[%zu]*B[%zu]: AVX512 = %a (%1.8e), HOPPER = %a (%1.8e), HOPPER EMULATION = %a (%1.8e), HOPPER EMULATION 2 = %a (%1.8e)\n",
                 aa, bb,
                 avx512_res, avx512_res,
                 hopper_res, hopper_res,
-                hopper_emu_res, hopper_emu_res
+                hopper_emu_res, hopper_emu_res,
+                hopper_emu_res_2, hopper_emu_res_2
             );
 
             if (is_verbose != 0) {
