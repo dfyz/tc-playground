@@ -61,7 +61,7 @@ void decompose(float x, float* frac, int32_t* exponent) {
     int32_t m_exp = 0;
     if (real_exp == -FP32_EXP_BIAS) {
         ++real_exp;
-        parts.f = ldexpf(parts.f, FP32_MANTISSA_BITS);
+        parts.f *= (float)(1u << FP32_MANTISSA_BITS);
         m_exp = (extract_fp32_exp(parts) - FP32_MANTISSA_BITS) - real_exp;
     }
     store_fp32_exp(&parts, m_exp);
