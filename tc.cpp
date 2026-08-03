@@ -84,7 +84,7 @@ int main(int argc, char** argv) {
             const auto avx512_res = MulVecVecAvx512(cc, vec_a, vec_b);
             const auto hopper_res = hopper_out[aa][bb];
             const auto hopper_emu_res = MulVecVecHopperEmu(cc, vec_a, vec_b);
-            const auto hopper_emu_res_2 = MulVecVecHopperEmu2(cc, (const unsigned*)vec_a.data(), (const unsigned*)vec_b.data());
+            const auto hopper_emu_res_2 = MulVecVecHopperEmu2(cc, (const uint16_t*)vec_a.data(), (const uint16_t*)vec_b.data());
             printf(
                 "A[%zu]*B[%zu]: AVX512 = %a (%1.8e), HOPPER = %a (%1.8e), HOPPER EMULATION = %a (%1.8e), HOPPER EMULATION 2 = %a (%1.8e)\n",
                 aa, bb,
@@ -112,6 +112,9 @@ int main(int argc, char** argv) {
 
             if (!std::isnan(hopper_res) && hopper_res != hopper_emu_res) {
                 errx(1, "detected a mismatch between the device output and its emulation");
+            }
+            if (!std::isnan(hopper_emu_res) && hopper_emu_res != hopper_emu_res_2) {
+                errx(1, "detected a mismatch between two different emulation types");
             }
         }
     }

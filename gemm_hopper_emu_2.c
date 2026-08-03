@@ -28,7 +28,7 @@ struct addend {
     int   exponent;
 };
 
-float load_bf16(const uint32_t* ptr) {
+float load_bf16(const uint16_t* ptr) {
     union fp32_int res = {.i = *ptr};
     res.i <<= 16;
     return res.f;
@@ -70,7 +70,7 @@ double truncate_addend(double frac, int32_t cur_exp, int32_t max_exp) {
     );
 }
 
-float MulVecVecHopperEmu2(float c, const uint32_t vec_a[VEC_K], const uint32_t vec_b[VEC_K]) {
+float MulVecVecHopperEmu2(float c, const uint16_t vec_a[VEC_K], const uint16_t vec_b[VEC_K]) {
     struct addend addends[VEC_K];
     int32_t max_exp = -133;
 
@@ -80,7 +80,7 @@ float MulVecVecHopperEmu2(float c, const uint32_t vec_a[VEC_K], const uint32_t v
         decompose(load_bf16(vec_a + ii), &a_frac, &a_exp);
         decompose(load_bf16(vec_b + ii), &b_frac, &b_exp);
 
-        addends[ii].frac = a_frac + b_frac;
+        addends[ii].frac = a_frac * b_frac;
         addends[ii].exponent = a_exp + b_exp;
         if (addends[ii].exponent > max_exp) {
             max_exp = addends[ii].exponent;
