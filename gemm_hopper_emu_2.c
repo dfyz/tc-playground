@@ -3,25 +3,46 @@
 #include <math.h>
 
 constexpr auto FP32_EXP_BIAS = 127;
+constexpr auto FP64_EXP_BIAS = 1023;
+
 constexpr auto FP32_MANTISSA_BITS = 23;
 constexpr auto FP64_MANTISSA_BITS = 52;
+
 constexpr auto FRAC_SUM_BITS = 25;
 
 union fp32_int {
     float    f;
     uint32_t i;
 
-    struct parts {
-        unsigned frac    : 23;
-        unsigned exponent: 8;
-        unsigned sign    : 1;
+    struct {
+        uint32_t frac    : FP32_MANTISSA_BITS;
+        uint32_t exponent: 8;
+        uint32_t sign    : 1;
     } p;
 };
+
+int32_t extract_fp32_exp(union fp32_int x) {
+    return (int32_t)x.p.exponent - FP32_EXP_BIAS;
+}
+
+uint32_t store_fp32_exp(union fp32_int* x, int32_t e) {
+    x->p.exponent = e + FP32_EXP_BIAS;
+}
 
 union fp64_int {
     double   f;
     uint64_t i;
+
+    struct {
+        uint64_t frac    : FP64_MANTISSA_BITS;
+        uint32_t exponent: 11;
+        uint32_t sign    : 1;
+    } p;
 };
+
+int32_t extract_fp64_exp(union fp64_int x) {
+    return (int32_t)x.p.exponent - FP64_EXP_BIAS;
+}
 
 struct addend {
     float frac;
@@ -34,40 +55,39 @@ float load_bf16(const uint16_t* ptr) {
     return res.f;
 }
 
-int32_t unbias_exp(uint32_t exp) {
-    return (int32_t)exp - FP32_EXP_BIAS;
-}
-
-uint32_t bias_exp(int32_t exp) {
-    return (uint32_t)(exp + FP32_EXP_BIAS);
-}
-
 void decompose(float x, float* frac, int32_t* exponent) {
     union fp32_int parts = {.f = x};
+    int32_t real_exp = extract_fp32_exp(parts);
     int32_t m_exp = 0;
-    int32_t real_exp = unbias_exp(parts.p.exponent);
     if (real_exp == -FP32_EXP_BIAS) {
         ++real_exp;
         parts.f = ldexpf(parts.f, FP32_MANTISSA_BITS);
-        m_exp = (unbias_exp(parts.p.exponent) - FP32_MANTISSA_BITS) - real_exp;
+        m_exp = (extract_fp32_exp(parts) - FP32_MANTISSA_BITS) - real_exp;
     }
-    parts.p.exponent = bias_exp(m_exp);
+    store_fp32_exp(&parts, m_exp);
     *frac = parts.f;
     *exponent = real_exp;
 }
 
 double chop_frac(double x, int n_bits) {
     union fp64_int res = {.f = x};
+    if (n_bits < 0) {
+        n_bits = 0;
+    }
+    if (n_bits > FP64_MANTISSA_BITS) {
+        n_bits = FP64_MANTISSA_BITS;
+    }
     int shift_by = FP64_MANTISSA_BITS - n_bits;
     res.i = res.i >> shift_by << shift_by;
     return res.f;
 }
 
 double truncate_addend(double frac, int32_t cur_exp, int32_t max_exp) {
-    return chop_frac(
-        ldexp(frac, cur_exp - max_exp),
-        FRAC_SUM_BITS
-    );
+    int bits_delta = extract_fp64_exp((union fp64_int){.f = frac});
+    int32_t exp_delta = max_exp - cur_exp;
+    double aligned = ldexp(frac, -exp_delta);
+    int n_chop = FRAC_SUM_BITS - exp_delta + bits_delta;
+    return chop_frac(aligned, n_chop);
 }
 
 float MulVecVecHopperEmu2(float c, const uint16_t vec_a[VEC_K], const uint16_t vec_b[VEC_K]) {
