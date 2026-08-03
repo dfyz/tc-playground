@@ -113,7 +113,7 @@ int main(int argc, char** argv) {
             if (!std::isnan(hopper_res) && hopper_res != hopper_emu_res) {
                 errx(1, "detected a mismatch between the device output and its emulation");
             }
-            if (!std::isnan(hopper_emu_res) && hopper_emu_res != hopper_emu_res_2) {
+            if (hopper_emu_res != hopper_emu_res_2) {
                 errx(1, "detected a mismatch between two different emulation types");
             }
         }
