@@ -58,8 +58,8 @@ void decompose(float x, float* frac, int32_t* exponent) {
 
 double chop_frac(double x, int n_bits) {
     union fp64_int res = {.f = x};
-    res.i >>= FP64_MANTISSA_BITS - n_bits;
-    res.i <<= FP64_MANTISSA_BITS - n_bits;
+    int shift_by = FP64_MANTISSA_BITS - n_bits;
+    res.i = res.i >> shift_by << shift_by;
     return res.f;
 }
 
