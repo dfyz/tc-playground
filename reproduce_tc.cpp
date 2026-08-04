@@ -1,5 +1,5 @@
 #include "common.h"
-#include "gemm_hopper_emu.h"
+#include "gemm_hopper_emu_2.h"
 
 #include <cstdio>
 #include <err.h>
@@ -63,10 +63,10 @@ int main(int argc, char** argv) {
                         const auto k_start = part * k_chunk_size;
                         const auto k_end = (part + 1) * k_chunk_size;
                         for (size_t kk = k_start; kk < k_end; kk += kK) {
-                            inner_acc = MulVecVecHopperEmu(
+                            inner_acc = MulVecVecHopperEmu2(
                                 inner_acc,
-                                a_mat[GetPos(row, kk, full_k) / kK],
-                                b_mat[GetPos(col, kk, full_k) / kK]
+                                (const uint16_t*)a_mat[GetPos(row, kk, full_k) / kK].data(),
+                                (const uint16_t*)b_mat[GetPos(col, kk, full_k) / kK].data()
                             );
                         }
                         outer_acc += inner_acc;

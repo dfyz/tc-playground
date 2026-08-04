@@ -35,10 +35,10 @@ tc: tc.cpp tc-ptx gemm-avx512 gemm-hopper gemm-hopper-emu gemm-hopper-emu-2
 		tc.cpp gemm_avx512.o gemm_hopper.o gemm_hopper_emu.o gemm_hopper_emu_2.o \
 		-lcuda
 
-reproduce_tc: reproduce_tc.cpp gemm_hopper_emu.o
+reproduce_tc: reproduce_tc.cpp gemm_hopper_emu_2.o
 	$(CXX) $(CFLAGS) $(CXX_STD) $(LDFLAGS) -O2 \
 		-o reproduce_tc \
-		reproduce_tc.cpp gemm_hopper_emu.o \
+		reproduce_tc.cpp gemm_hopper_emu_2.o \
 		-lcuda
 
 clean:
