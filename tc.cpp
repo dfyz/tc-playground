@@ -95,19 +95,19 @@ int main(int argc, char** argv) {
             );
 
             if (is_verbose != 0) {
-                printf("A_hex = {");
+                printf("A_hex = [");
                 for (size_t ii = 0; ii < vec_a.size(); ++ii) {
-                    printf("%s'%04hX'", (ii ? ", " : ""), ((__nv_bfloat16_raw)vec_a[ii]).x);
+                    printf("%s0x%04hX", (ii ? ", " : ""), ((__nv_bfloat16_raw)vec_a[ii]).x);
                 }
-                printf("}\n");
-                printf("B_hex = {");
+                printf("]\n");
+                printf("B_hex = [");
                 for (size_t ii = 0; ii < vec_b.size(); ++ii) {
-                    printf("%s'%04hX'", (ii ? ", " : ""), ((__nv_bfloat16_raw)vec_b[ii]).x);
+                    printf("%s0x%04hX", (ii ? ", " : ""), ((__nv_bfloat16_raw)vec_b[ii]).x);
                 }
-                printf("}\n");
+                printf("]\n");
                 uint32_t c_int;
                 memcpy(&c_int, &cc, sizeof(uint32_t));
-                printf("C_hex = '%08X'\n", c_int);
+                printf("C_hex = 0x%08X\n", c_int);
             }
 
             if (!std::isnan(hopper_res) && hopper_res != hopper_emu_res) {
