@@ -1,5 +1,8 @@
 #include "gemm_hopper_emu_2.h"
 
+#pragma STDC FENV_ACCESS ON
+
+#include <fenv.h>
 #include <math.h>
 
 constexpr auto FP32_EXP_BIAS = 127;
@@ -62,7 +65,11 @@ void decompose(float x, float* frac, int32_t* exponent) {
     if (real_exp == -FP32_EXP_BIAS) {
         ++real_exp;
         parts.f *= (float)(1u << FP32_MANTISSA_BITS);
-        m_exp = (extract_fp32_exp(parts) - FP32_MANTISSA_BITS) - real_exp;
+        if (parts.f == 0.0f) {
+            m_exp = -FP32_EXP_BIAS;
+        } else {
+            m_exp = (extract_fp32_exp(parts) - FP32_MANTISSA_BITS) - real_exp;
+        }
     }
     store_fp32_exp(&parts, m_exp);
     *frac = parts.f;
@@ -87,7 +94,16 @@ double truncate_addend(double frac, int32_t cur_exp, int32_t max_exp) {
     int32_t exp_delta = max_exp - cur_exp;
     double aligned = ldexp(frac, -exp_delta);
     int n_chop = FRAC_SUM_BITS - exp_delta + bits_delta;
-    return chop_frac(aligned, n_chop);
+    double res = chop_frac(aligned, n_chop);
+    return fabs(res) < 0x1p-25 ? 0.0f : res;
+}
+
+float to_fp32_rz(double x) {
+    int old_rounding = fegetround();
+    fesetround(FE_TOWARDZERO);
+    volatile float res = (float)x;
+    fesetround(old_rounding);
+    return res;
 }
 
 float MulVecVecHopperEmu2(float c, const uint16_t vec_a[VEC_K], const uint16_t vec_b[VEC_K]) {
@@ -118,8 +134,6 @@ float MulVecVecHopperEmu2(float c, const uint16_t vec_a[VEC_K], const uint16_t v
     for (size_t ii = 0; ii < VEC_K; ++ii) {
         frac_sum += truncate_addend(addends[ii].frac, addends[ii].exponent, max_exp);
     }
-    return chop_frac(
-        ldexp(frac_sum, max_exp),
-        FP32_MANTISSA_BITS
-    );
+
+    return to_fp32_rz(ldexp(frac_sum, max_exp));
 }
