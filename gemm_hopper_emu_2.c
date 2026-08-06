@@ -5,13 +5,13 @@
 #include <fenv.h>
 #include <math.h>
 
-constexpr auto FP32_EXP_BIAS = 127;
-constexpr auto FP64_EXP_BIAS = 1023;
+constexpr int FP32_EXP_BIAS = 127;
+constexpr int FP64_EXP_BIAS = 1023;
 
-constexpr auto FP32_MANTISSA_BITS = 23;
-constexpr auto FP64_MANTISSA_BITS = 52;
+constexpr int FP32_MANTISSA_BITS = 23;
+constexpr int FP64_MANTISSA_BITS = 52;
 
-constexpr auto FRAC_SUM_BITS = 25;
+constexpr int FRAC_SUM_BITS = 25;
 
 union fp32_int {
     float    f;
@@ -116,11 +116,21 @@ float MulVecVecHopperEmu2(float c, const uint16_t vec_a[VEC_K], const uint16_t v
         decompose(load_bf16(vec_a + ii), &a_frac, &a_exp);
         decompose(load_bf16(vec_b + ii), &b_frac, &b_exp);
 
-        addends[ii].frac = a_frac * b_frac;
-        addends[ii].exponent = a_exp + b_exp;
-        if (addends[ii].exponent > max_exp) {
-            max_exp = addends[ii].exponent;
+        float   prod_frac = a_frac * b_frac;
+        int32_t prod_exp  = a_exp + b_exp;
+
+        if (prod_frac == 0.0f) {
+            prod_exp = 1 - FP32_EXP_BIAS;
         }
+
+        if (prod_exp > max_exp) {
+            max_exp = prod_exp;
+        }
+
+        addends[ii] = (struct addend){
+            .frac = prod_frac,
+            .exponent = prod_exp,
+        };
     }
 
     float   c_frac;
