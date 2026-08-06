@@ -13,6 +13,8 @@ constexpr int FP64_MANTISSA_BITS = 52;
 
 constexpr int FRAC_SUM_BITS = 25;
 
+constexpr int FP32_ZERO_EXP = -133;
+
 union fp32_int {
     float    f;
     uint32_t i;
@@ -108,7 +110,7 @@ float to_fp32_rz(double x) {
 
 float MulVecVecHopperEmu2(float c, const uint16_t vec_a[VEC_K], const uint16_t vec_b[VEC_K]) {
     struct addend addends[VEC_K];
-    int32_t max_exp = -133;
+    int32_t max_exp = FP32_ZERO_EXP;
 
     for (size_t ii = 0; ii < VEC_K; ++ii) {
         float   a_frac, b_frac;
@@ -120,7 +122,7 @@ float MulVecVecHopperEmu2(float c, const uint16_t vec_a[VEC_K], const uint16_t v
         int32_t prod_exp  = a_exp + b_exp;
 
         if (prod_frac == 0.0f) {
-            prod_exp = 1 - FP32_EXP_BIAS;
+            prod_exp = FP32_ZERO_EXP;
         }
 
         if (prod_exp > max_exp) {
