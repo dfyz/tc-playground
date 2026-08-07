@@ -5,9 +5,9 @@
 #include <fenv.h>
 #include <math.h>
 
-constexpr int FP64_EXP_BIAS = 1023;
 constexpr int FP64_MANTISSA_BITS = 52;
-constexpr int FP32_ZERO_EXP = -133;
+constexpr int FP64_EXP_BIAS      = 1023;
+constexpr int FP32_ZERO_EXP      = -133;
 
 union fp32_int {
     float    f;
@@ -17,6 +17,11 @@ union fp32_int {
 union fp64_int {
     double   f;
     uint64_t i;
+    struct {
+        uint64_t frac:     FP64_MANTISSA_BITS;
+        uint32_t exponent: 11;
+        uint32_t sign:     1;
+    }        p;
 };
 
 double load_bf16(const uint16_t* ptr) {
@@ -30,7 +35,7 @@ int32_t get_exp(double x) {
         return FP32_ZERO_EXP;
     }
     union fp64_int tmp = {.f = x};
-    return (int32_t)((tmp.i >> FP64_MANTISSA_BITS) & 0x7FF) - FP64_EXP_BIAS;
+    return (int32_t)tmp.p.exponent - FP64_EXP_BIAS;
 }
 
 double shift(double orig, int32_t max_exp) {
