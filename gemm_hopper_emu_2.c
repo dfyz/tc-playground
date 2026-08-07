@@ -5,29 +5,25 @@
 
 #include <fenv.h>
 
+constexpr int FP64_MANTISSA_BITS = 52;
 constexpr int FP64_EXP_BIAS      = 1023;
+
+constexpr int FP32_MANTISSA_BITS = 23;
 constexpr int FP32_EXP_BIAS      = 127;
 constexpr int FP32_ZERO_EXP      = -133;
-constexpr int MAGIC_SHIFT        = 27;
 
 union fp32_int {
     float    f;
     uint32_t i;
-    struct {
-        uint32_t frac:     23;
-        uint32_t exponent: 8;
-        uint32_t sign:     1;
-    }        p;
 };
 
 union fp64_int {
     double   f;
     uint64_t i;
-    struct {
-        uint64_t frac:     52;
-        uint32_t exponent: 11;
-        uint32_t sign:     1;
-    }        p;
+};
+
+constexpr union fp64_int MAGIC = {
+    .f = 0x1p27,
 };
 
 float load_bf16(const uint16_t* ptr) {
@@ -37,11 +33,9 @@ float load_bf16(const uint16_t* ptr) {
 }
 
 int32_t get_exp(float x) {
-    union fp32_int parts = {.f = x};
-    if (parts.p.exponent == 0) {
-        ++parts.p.exponent;
-    }
-    return (int32_t)parts.p.exponent - FP32_EXP_BIAS;
+    union fp32_int tmp = {.f = x};
+    int32_t biased_exp = (tmp.i >> FP32_MANTISSA_BITS) & 0xff;
+    return (biased_exp + (biased_exp == 0)) - FP32_EXP_BIAS;
 }
 
 double shift(double x, double magic) {
@@ -64,8 +58,8 @@ float tc_bf16_fp32(float c, const uint16_t vec_a[VEC_K], const uint16_t vec_b[VE
         addends[ii] = prod;
     }
 
-    union fp64_int magic = {};
-    magic.p.exponent = FP64_EXP_BIAS + max_exp + MAGIC_SHIFT;
+    union fp64_int magic = MAGIC;
+    magic.i += (uint64_t)max_exp << FP64_MANTISSA_BITS;
 
     double res = shift(c, magic.f);
     for (size_t ii = 0; ii < VEC_K; ++ii) {
