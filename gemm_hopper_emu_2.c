@@ -21,10 +21,6 @@ union fp64_int {
     uint64_t i;
 };
 
-constexpr union fp64_int MAGIC = {
-    .f = 0x1p27,
-};
-
 float load_bf16(const uint16_t* ptr) {
     return (union fp32_int){
         .i = *ptr << 16,
@@ -61,7 +57,7 @@ float tc_bf16_fp32(float c, const uint16_t vec_a[VEC_K], const uint16_t vec_b[VE
         addends[ii] = prod;
     }
 
-    union fp64_int magic = MAGIC;
+    union fp64_int magic = {.f = 0x1p27};
     magic.i += (uint64_t)max_exp << FP64_MANTISSA_BITS;
 
     double res = shift(c, magic.f);
