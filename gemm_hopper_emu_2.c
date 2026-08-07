@@ -100,15 +100,14 @@ double truncate_addend(double frac, int32_t cur_exp, int32_t max_exp) {
     return fabs(res) < 0x1p-25 ? 0.0f : res;
 }
 
-float to_fp32_rz(double x) {
-    int old_rounding = fegetround();
-    fesetround(FE_TOWARDZERO);
-    volatile float res = (float)x;
-    fesetround(old_rounding);
-    return res;
+double shift(double orig, int32_t max_exp) {
+    union fp64_int shifter = {.f = orig};
+    shifter.i = (((uint64_t)max_exp + FP64_EXP_BIAS + 27) << FP64_MANTISSA_BITS) | (shifter.i >> 63 << 63);
+    return ldexp(orig + shifter.f - shifter.f, -max_exp);
 }
 
 float MulVecVecHopperEmu2(float c, const uint16_t vec_a[VEC_K], const uint16_t vec_b[VEC_K]) {
+    fesetround(FE_TOWARDZERO);
     struct addend addends[VEC_K];
     int32_t max_exp = FP32_ZERO_EXP;
 
@@ -143,9 +142,35 @@ float MulVecVecHopperEmu2(float c, const uint16_t vec_a[VEC_K], const uint16_t v
     }
 
     double frac_sum = truncate_addend(c_frac, c_exp, max_exp);
+
+    int printf(const char* fmt, ...);
+
+    printf("max_exp = %d\n", max_exp);
+    printf("c_exp = %d\n", c_exp);
+    printf("c_orig = %.13a\n", frac_sum);
+    printf("c_ours = %.13a\n", shift(c, max_exp));
+
+    double res_ours = shift(c, max_exp);
+
     for (size_t ii = 0; ii < VEC_K; ++ii) {
-        frac_sum += truncate_addend(addends[ii].frac, addends[ii].exponent, max_exp);
+        double val = truncate_addend(addends[ii].frac, addends[ii].exponent, max_exp);
+        double shifted = shift((double)load_bf16(vec_a + ii) * (double)load_bf16(vec_b + ii), max_exp);
+
+        printf("%02zu_exp = %d\n", ii, addends[ii].exponent);
+        printf("%02zu_orig = %.13a\n", ii, val);
+        printf("%02zu_ours = %.13a\n", ii, shifted);
+
+        frac_sum += val;
+        res_ours += shifted;
     }
 
-    return to_fp32_rz(ldexp(frac_sum, max_exp));
+    double res_orig = ldexp(frac_sum, max_exp);
+    res_ours = ldexp(res_ours, max_exp);
+
+    printf("res_orig = %.13a\n", res_orig);
+    printf("res_ours = %.13a\n", res_ours);
+
+    volatile float res = res_ours;
+    fesetround(FE_TONEAREST);
+    return res;
 }
