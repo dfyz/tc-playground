@@ -7,7 +7,8 @@
 
 constexpr int FP64_MANTISSA_BITS = 52;
 constexpr int FP64_EXP_BIAS      = 1023;
-constexpr int FP32_ZERO_EXP      = -133;
+constexpr int ZERO_EXP           = -133;
+constexpr int MAGIC_SHIFT        = 27;
 
 union fp32_int {
     float    f;
@@ -32,16 +33,15 @@ double load_bf16(const uint16_t* ptr) {
 
 int32_t get_exp(double x) {
     if (x == 0.0) {
-        return FP32_ZERO_EXP;
+        return ZERO_EXP;
     }
     union fp64_int tmp = {.f = x};
     return (int32_t)tmp.p.exponent - FP64_EXP_BIAS;
 }
 
-double shift(double orig, int32_t max_exp) {
-    union fp64_int shifter = {.f = orig};
-    shifter.i = (((uint64_t)max_exp + FP64_EXP_BIAS + 27) << FP64_MANTISSA_BITS) | (shifter.i >> 63 << 63);
-    return ldexp(orig + shifter.f - shifter.f, -max_exp);
+double shift(double x, double magic, int32_t max_exp) {
+    magic = x < 0 ? -magic : magic;
+    return ldexp(x + magic - magic, -max_exp);
 }
 
 float tc_bf16_fp32(float c, const uint16_t vec_a[VEC_K], const uint16_t vec_b[VEC_K]) {
@@ -58,9 +58,15 @@ float tc_bf16_fp32(float c, const uint16_t vec_a[VEC_K], const uint16_t vec_b[VE
         }
     }
 
-    double res = shift(c, max_exp);
+    union fp64_int magic = {.p = {
+        .frac     = 0,
+        .exponent = FP64_EXP_BIAS + max_exp + MAGIC_SHIFT,
+        .sign     = 0,
+    }};
+
+    double res = shift(c, magic.f, max_exp);
     for (size_t ii = 0; ii < VEC_K; ++ii) {
-        res += shift(addends[ii], max_exp);
+        res += shift(addends[ii], magic.f, max_exp);
     }
     return ldexp(res, max_exp);
 }
