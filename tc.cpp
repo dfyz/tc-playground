@@ -43,8 +43,10 @@ void PermuteVecPair(Rng& rng, Vec& vec1, Vec& vec2) {
     }
 }
 
+using Input = std::tuple<MatA, MatB, float>;
+
 template <typename Gen>
-std::tuple<MatA, MatB, float> GenInput(Rng& rng, Gen& gen, bool accumulate) {
+Input GenInput(Rng& rng, Gen& gen, bool accumulate) {
     MatA res_a;
     MatB res_b;
 
@@ -66,7 +68,7 @@ std::tuple<MatA, MatB, float> GenInput(Rng& rng, Gen& gen, bool accumulate) {
     return std::make_tuple(res_a, res_b, accumulate ? GenSign(rng) * gen(rng) : 0.0f);
 }
 
-std::tuple<MatA, MatB, float> GenInput(Rng::result_type seed, uint32_t mode, bool accumulate) {
+Input GenInput(Rng::result_type seed, uint32_t mode, bool accumulate) {
     Rng rng{seed};
     switch (mode) {
     case 0:
@@ -127,12 +129,16 @@ std::tuple<MatA, MatB, float> GenInput(Rng::result_type seed, uint32_t mode, boo
     }
 }
 
-void CheckRandomInput(Rng::result_type seed, bool is_verbose, uint32_t mode, bool accumulate) {
-    const auto [mat_a, mat_b, cc] = GenInput(seed, mode, accumulate);
+void CheckInput(const Input& input, bool is_verbose, bool first_row_only) {
+    const auto& [mat_a, mat_b, cc] = input;
     const auto hopper_out = MulMatMatHopper(cc, mat_a, mat_b);
 
     for (size_t aa = 0; aa < mat_a.size(); ++aa) {
         for (size_t bb = 0; bb < mat_b.size(); ++bb) {
+            if (first_row_only && (aa != 0 || bb != 0)) {
+                continue;
+            }
+
             const auto& vec_a = mat_a[aa];
             const auto& vec_b = mat_b[bb];
             const auto avx512_res = MulVecVecAvx512(cc, vec_a, vec_b);
@@ -177,12 +183,59 @@ void CheckRandomInput(Rng::result_type seed, bool is_verbose, uint32_t mode, boo
     }
 }
 
+void CheckRandomInput(Rng::result_type seed, bool is_verbose, uint32_t mode, bool accumulate) {
+    const auto input = GenInput(seed, mode, accumulate);
+    CheckInput(input, is_verbose, false);
+}
+
+void CheckFileInput(bool is_verbose) {
+    FILE* a_file = fopen("a.txt", "r");
+    if (a_file == nullptr) {
+        errx(1, "failed to open a.txt");
+    }
+    FILE* b_file = fopen("b.txt", "r");
+    if (b_file == nullptr) {
+        errx(1, "failed to open b.txt");
+    }
+    FILE* c_file = fopen("c.txt", "r");
+    if (c_file == nullptr) {
+        errx(1, "failed to open c.txt");
+    }
+
+    uint32_t c;
+    while (fscanf(c_file, "%b", &c) == 1) {
+        MatA mat_a{};
+        MatB mat_b{};
+
+        for (size_t ii = 0; ii < kK; ++ii) {
+            uint32_t a_val;
+            if (fscanf(a_file, "%x", &a_val) != 1) {
+                errx(1, "failed to read from a");
+            }
+            mat_a[0][ii] = __nv_bfloat16_raw{(unsigned short)(a_val >> 16)};
+
+            uint32_t b_val;
+            if (fscanf(b_file, "%x", &b_val) != 1) {
+                errx(1, "failed to read from b");
+            }
+            mat_b[0][ii] = __nv_bfloat16_raw{(unsigned short)(b_val >> 16)};
+        }
+
+        CheckInput(std::make_tuple(mat_a, mat_b, std::bit_cast<float>(c)), is_verbose, true);
+    }
+}
+
 int main(int argc, char** argv) {
     if (argc != 3) {
         errx(1, "usage: %s SEED VERBOSE", argv[0]);
     }
     const auto seed = std::stoull(argv[1]);
     const auto is_verbose = std::stoull(argv[2]);
+
+    if (seed == 0) {
+        CheckFileInput(is_verbose);
+        return 0;
+    }
 
     for (uint32_t acc = 0; acc < 2; ++acc) {
         for (uint32_t mode = 0; mode < 6; ++mode) {
