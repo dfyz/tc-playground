@@ -26,9 +26,9 @@ union fp64_int {
 };
 
 double load_bf16(const uint16_t* ptr) {
-    union fp32_int res = {.i = *ptr};
-    res.i <<= 16;
-    return res.f;
+    return (union fp32_int){
+        .i = *ptr << 16,
+    }.f;
 }
 
 int32_t get_exp(double x) {
