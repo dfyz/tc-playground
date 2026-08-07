@@ -5,38 +5,43 @@
 
 #include <fenv.h>
 
-constexpr int FP64_MANTISSA_BITS = 52;
 constexpr int FP64_EXP_BIAS      = 1023;
-constexpr int ZERO_EXP           = -133;
+constexpr int FP32_EXP_BIAS      = 127;
+constexpr int FP32_ZERO_EXP      = -133;
 constexpr int MAGIC_SHIFT        = 27;
 
 union fp32_int {
     float    f;
     uint32_t i;
+    struct {
+        uint32_t frac:     23;
+        uint32_t exponent: 8;
+        uint32_t sign:     1;
+    }        p;
 };
 
 union fp64_int {
     double   f;
     uint64_t i;
     struct {
-        uint64_t frac:     FP64_MANTISSA_BITS;
+        uint64_t frac:     52;
         uint32_t exponent: 11;
         uint32_t sign:     1;
     }        p;
 };
 
-double load_bf16(const uint16_t* ptr) {
+float load_bf16(const uint16_t* ptr) {
     return (union fp32_int){
         .i = *ptr << 16,
     }.f;
 }
 
-int32_t get_exp(double x) {
-    if (x == 0.0) {
-        return ZERO_EXP;
+int32_t get_exp(float x) {
+    union fp32_int parts = {.f = x};
+    if (parts.p.exponent == 0) {
+        ++parts.p.exponent;
     }
-    union fp64_int tmp = {.f = x};
-    return (int32_t)tmp.p.exponent - FP64_EXP_BIAS;
+    return (int32_t)parts.p.exponent - FP32_EXP_BIAS;
 }
 
 double shift(double x, double magic) {
@@ -44,19 +49,19 @@ double shift(double x, double magic) {
     return x + magic - magic;
 }
 
-int32_t max(int32_t a, int32_t b) {
-    return a > b ? a : b;
-}
-
 float tc_bf16_fp32(float c, const uint16_t vec_a[VEC_K], const uint16_t vec_b[VEC_K]) {
     double addends[VEC_K];
-    int32_t max_exp = get_exp(c);
+    int32_t max_exp = c == 0.0 ? FP32_ZERO_EXP : get_exp(c);
 
     for (size_t ii = 0; ii < VEC_K; ++ii) {
-        double lhs = load_bf16(vec_a + ii);
-        double rhs = load_bf16(vec_b + ii);
-        addends[ii] = lhs * rhs;
-        max_exp = max(max_exp, get_exp(lhs) + get_exp(rhs));
+        float lhs   = load_bf16(vec_a + ii);
+        float rhs   = load_bf16(vec_b + ii);
+        double prod = (double)lhs * (double)rhs;
+        int32_t cur_exp = prod == 0.0 ? FP32_ZERO_EXP : (get_exp(lhs) + get_exp(rhs));
+        if (cur_exp > max_exp) {
+            max_exp = cur_exp;
+        }
+        addends[ii] = prod;
     }
 
     union fp64_int magic = {};

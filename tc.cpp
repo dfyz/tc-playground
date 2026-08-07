@@ -99,7 +99,16 @@ std::tuple<MatA, MatB, float> GenInput(Rng::result_type seed, uint32_t mode, boo
             std::uniform_int_distribution gen{std::numeric_limits<int>::min()};
             MatA res_a;
             MatB res_b;
-            for (size_t ii = 0; ii < res_b.size(); ++ii) {
+
+            // A manually crafted test case that tends to uncover errors.
+            std::array<uint16_t, 16> bad_a = {0xB43C, 0x82A4, 0x3D54, 0xCAEF, 0x0923, 0xE502, 0x8635, 0xC1A4, 0xAD03, 0x5BAC, 0x5308, 0x5527, 0x835F, 0x8737, 0xB8E4, 0xFE71};
+            std::array<uint16_t, 16> bad_b = {0x0008, 0x0000, 0x0001, 0x0000, 0x0065, 0x0000, 0x0000, 0x0000, 0x0020, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000};
+            for (size_t ii = 0; ii < 16; ++ii) {
+                res_a[0][ii] = __nv_bfloat16_raw{bad_a[ii]};
+                res_b[0][ii] = __nv_bfloat16_raw{bad_b[ii]};
+            }
+
+            for (size_t ii = 1; ii < res_b.size(); ++ii) {
                 if (ii < res_a.size()) {
                     auto& vec_a = res_a[ii];
                     for (size_t jj = 0; jj < vec_a.size(); ++jj) {
