@@ -59,11 +59,8 @@ float tc_bf16_fp32(float c, const uint16_t vec_a[VEC_K], const uint16_t vec_b[VE
         max_exp = max(max_exp, get_exp(lhs) + get_exp(rhs));
     }
 
-    union fp64_int magic = {.p = {
-        .frac     = 0,
-        .exponent = FP64_EXP_BIAS + max_exp + MAGIC_SHIFT,
-        .sign     = 0,
-    }};
+    union fp64_int magic = {};
+    magic.p.exponent = FP64_EXP_BIAS + max_exp + MAGIC_SHIFT;
 
     double res = shift(c, magic.f, max_exp);
     for (size_t ii = 0; ii < VEC_K; ++ii) {
