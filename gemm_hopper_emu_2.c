@@ -4,7 +4,6 @@
 #pragma STDC FP_CONTRACT OFF
 
 #include <fenv.h>
-#include <math.h>
 
 constexpr int FP64_MANTISSA_BITS = 52;
 constexpr int FP64_EXP_BIAS      = 1023;
