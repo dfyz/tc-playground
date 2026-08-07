@@ -10,7 +10,6 @@ constexpr int FP64_EXP_BIAS      = 1023;
 
 constexpr int FP32_MANTISSA_BITS = 23;
 constexpr int FP32_EXP_BIAS      = 127;
-constexpr int FP32_ZERO_EXP      = -133;
 
 union fp32_int {
     float    f;
@@ -43,15 +42,19 @@ double shift(double x, double magic) {
     return x + magic - magic;
 }
 
+int32_t guard_zero(double res, int32_t exp) {
+    return res == 0.0 ? -133 : exp;
+}
+
 float tc_bf16_fp32(float c, const uint16_t vec_a[VEC_K], const uint16_t vec_b[VEC_K]) {
     double addends[VEC_K];
-    int32_t max_exp = c == 0.0 ? FP32_ZERO_EXP : get_exp(c);
+    int32_t max_exp = guard_zero(c, get_exp(c));
 
     for (size_t ii = 0; ii < VEC_K; ++ii) {
         float lhs   = load_bf16(vec_a + ii);
         float rhs   = load_bf16(vec_b + ii);
         double prod = (double)lhs * (double)rhs;
-        int32_t cur_exp = prod == 0.0 ? FP32_ZERO_EXP : (get_exp(lhs) + get_exp(rhs));
+        int32_t cur_exp = guard_zero(prod, get_exp(lhs) + get_exp(rhs));
         if (cur_exp > max_exp) {
             max_exp = cur_exp;
         }
