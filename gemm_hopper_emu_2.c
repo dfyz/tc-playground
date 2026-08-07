@@ -39,7 +39,7 @@ int32_t get_exp(double x) {
     return (int32_t)tmp.p.exponent - FP64_EXP_BIAS;
 }
 
-double shift(double x, double magic, int32_t max_exp) {
+double shift(double x, double magic) {
     magic = x < 0 ? -magic : magic;
     return x + magic - magic;
 }
@@ -62,9 +62,9 @@ float tc_bf16_fp32(float c, const uint16_t vec_a[VEC_K], const uint16_t vec_b[VE
     union fp64_int magic = {};
     magic.p.exponent = FP64_EXP_BIAS + max_exp + MAGIC_SHIFT;
 
-    double res = shift(c, magic.f, max_exp);
+    double res = shift(c, magic.f);
     for (size_t ii = 0; ii < VEC_K; ++ii) {
-        res += shift(addends[ii], magic.f, max_exp);
+        res += shift(addends[ii], magic.f);
     }
     return res;
 }
