@@ -44,6 +44,10 @@ double shift(double x, double magic, int32_t max_exp) {
     return ldexp(x + magic - magic, -max_exp);
 }
 
+int32_t max(int32_t a, int32_t b) {
+    return a > b ? a : b;
+}
+
 float tc_bf16_fp32(float c, const uint16_t vec_a[VEC_K], const uint16_t vec_b[VEC_K]) {
     double addends[VEC_K];
     int32_t max_exp = get_exp(c);
@@ -52,10 +56,7 @@ float tc_bf16_fp32(float c, const uint16_t vec_a[VEC_K], const uint16_t vec_b[VE
         double lhs = load_bf16(vec_a + ii);
         double rhs = load_bf16(vec_b + ii);
         addends[ii] = lhs * rhs;
-        int32_t exp_sum = get_exp(lhs) + get_exp(rhs);
-        if (exp_sum > max_exp) {
-            max_exp = exp_sum;
-        }
+        max_exp = max(max_exp, get_exp(lhs) + get_exp(rhs));
     }
 
     union fp64_int magic = {.p = {
