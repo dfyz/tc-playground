@@ -1,6 +1,7 @@
 #include "gemm_hopper_emu_2.h"
 
 #pragma STDC FENV_ACCESS ON
+#pragma STDC FP_CONTRACT OFF
 
 #include <fenv.h>
 #include <math.h>
@@ -41,7 +42,7 @@ int32_t get_exp(double x) {
 
 double shift(double x, double magic, int32_t max_exp) {
     magic = x < 0 ? -magic : magic;
-    return ldexp(x + magic - magic, -max_exp);
+    return x + magic - magic;
 }
 
 int32_t max(int32_t a, int32_t b) {
@@ -69,7 +70,7 @@ float tc_bf16_fp32(float c, const uint16_t vec_a[VEC_K], const uint16_t vec_b[VE
     for (size_t ii = 0; ii < VEC_K; ++ii) {
         res += shift(addends[ii], magic.f, max_exp);
     }
-    return ldexp(res, max_exp);
+    return res;
 }
 
 float MulVecVecHopperEmu2(float c, const uint16_t vec_a[VEC_K], const uint16_t vec_b[VEC_K]) {
