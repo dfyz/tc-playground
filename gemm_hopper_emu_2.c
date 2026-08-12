@@ -4,6 +4,7 @@
 #pragma STDC FP_CONTRACT OFF
 
 #include <fenv.h>
+#include <math.h>
 
 constexpr int FP64_MANTISSA_BITS = 52;
 constexpr int FP64_EXP_BIAS      = 1023;
@@ -16,14 +17,9 @@ union fp32_int {
     uint32_t i;
 };
 
-union fp64_int {
-    double   f;
-    uint64_t i;
-};
-
 float load_bf16(const uint16_t* ptr) {
     return (union fp32_int){
-        .i = *ptr << 16,
+        .i = (uint32_t)*ptr << 16,
     }.f;
 }
 
@@ -34,7 +30,7 @@ int32_t get_exp(float x) {
 }
 
 double shift(double x, double magic) {
-    magic = x < 0 ? -magic : magic;
+    magic = copysign(magic, x);
     return x + magic - magic;
 }
 
@@ -57,12 +53,10 @@ float tc_bf16_fp32(float c, const uint16_t vec_a[VEC_K], const uint16_t vec_b[VE
         addends[ii] = prod;
     }
 
-    union fp64_int magic = {.f = 0x1p27};
-    magic.i += (uint64_t)max_exp << FP64_MANTISSA_BITS;
-
-    double res = shift(c, magic.f);
+    double magic = ldexp(0x1p27, max_exp);
+    double res = shift(c, magic);
     for (size_t ii = 0; ii < VEC_K; ++ii) {
-        res += shift(addends[ii], magic.f);
+        res += shift(addends[ii], magic);
     }
     return res;
 }
